@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Build output
+dist/
+
+# Review output
+.revu
+
+# Rust/Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local

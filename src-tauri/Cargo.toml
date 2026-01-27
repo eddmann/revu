@@ -1,0 +1,22 @@
+[package]
+name = "revu"
+version = "0.1.0"
+description = "A local code reviewer for AI coding agents"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "revu_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-shell = "2.0"
+tauri-plugin-dialog = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+git2 = "0.20"
+thiserror = "1"

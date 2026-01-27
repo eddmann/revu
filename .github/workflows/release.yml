@@ -1,0 +1,249 @@
+name: Release revu
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # Extract version and changelog from CHANGELOG.md
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from changelog
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.md | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Extract changelog content
+        id: changelog
+        run: |
+          CONTENT=$(awk '
+            /^## \[/ {
+              if (found) exit
+              found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  # Build for all platforms
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - platform: linux-amd64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - platform: macos-amd64
+            os: macos-15
+            target: x86_64-apple-darwin
+          - platform: macos-arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set release version
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          echo "Setting version to $VERSION"
+
+          # Update version in tauri.conf.json
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            sed -i '' "s/\"version\": \"[0-9.]*\"/\"version\": \"${VERSION}\"/" src-tauri/tauri.conf.json
+          else
+            sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"${VERSION}\"/" src-tauri/tauri.conf.json
+          fi
+
+          # Update version in Cargo.toml
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            sed -i '' "s/^version = \"[0-9.]*\"$/version = \"${VERSION}\"/" src-tauri/Cargo.toml
+          else
+            sed -i "s/^version = \"[0-9.]*\"$/version = \"${VERSION}\"/" src-tauri/Cargo.toml
+          fi
+
+          # Update version in package.json
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            sed -i '' "s/\"version\": \"[0-9.]*\"/\"version\": \"${VERSION}\"/" package.json
+          else
+            sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"${VERSION}\"/" package.json
+          fi
+
+      - name: Install system dependencies (Linux)
+        if: matrix.platform == 'linux-amd64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Load Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Install Apple certificate (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k $KEYCHAIN_PATH
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+
+          rm -f $RUNNER_TEMP/certificate.p12
+
+      - name: Setup notarization (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > $RUNNER_TEMP/AuthKey.p8
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
+
+      - name: Build Tauri app
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+        run: make build/${{ matrix.target }}
+
+      - name: Prepare artifacts (Linux)
+        if: matrix.platform == 'linux-amd64'
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          cd src-tauri/target/${{ matrix.target }}/release/bundle
+
+          mv deb/*.deb revu-${VERSION}-${{ matrix.platform }}.deb
+          mv appimage/*.AppImage revu-${VERSION}-${{ matrix.platform }}.AppImage
+
+      - name: Prepare artifacts (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          cd src-tauri/target/${{ matrix.target }}/release/bundle
+
+          mv dmg/*.dmg revu-${VERSION}-${{ matrix.platform }}.dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.platform }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/revu-*
+          retention-days: 1
+
+      - name: Cleanup (macOS)
+        if: always() && startsWith(matrix.platform, 'macos')
+        run: |
+          if [[ -f "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain $KEYCHAIN_PATH || true
+          fi
+          rm -f $RUNNER_TEMP/AuthKey.p8 || true
+
+  # Create GitHub release and update Homebrew
+  release:
+    name: Create Release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: revu v${{ needs.prepare.outputs.version }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          files: artifacts/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          # Calculate SHA256 for each macOS architecture
+          SHA_ARM64=$(shasum -a 256 artifacts/revu-${VERSION}-macos-arm64.dmg | cut -d' ' -f1)
+          SHA_AMD64=$(shasum -a 256 artifacts/revu-${VERSION}-macos-amd64.dmg | cut -d' ' -f1)
+
+          echo "ARM64 SHA256: ${SHA_ARM64}"
+          echo "AMD64 SHA256: ${SHA_AMD64}"
+
+          # Clone homebrew-tap and update the cask
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/eddmann/homebrew-tap.git
+          cd homebrew-tap
+
+          # Update version
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/revu.rb
+
+          # Update ARM64 SHA256
+          sed -i "s/sha256 arm:   \"[^\"]*\"/sha256 arm:   \"${SHA_ARM64}\"/" Casks/revu.rb
+
+          # Update AMD64 SHA256
+          sed -i "s/^\([[:space:]]*\)intel: \"[^\"]*\"/\1intel: \"${SHA_AMD64}\"/" Casks/revu.rb
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/revu.rb
+          git commit -m "chore(revu): update to ${VERSION}"
+          git push
