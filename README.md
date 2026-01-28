@@ -46,6 +46,13 @@ Inspired by [Conductor](https://www.conductor.build/)'s working directory review
 brew install eddmann/tap/revu
 ```
 
+### Manual Download
+
+Download the latest release from [GitHub Releases](https://github.com/eddmann/revu/releases):
+
+- **macOS:** `.dmg` (Apple Silicon and Intel)
+- **Linux:** `.AppImage` or `.deb`
+
 ### Build from Source
 
 ```bash
