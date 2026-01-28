@@ -1,7 +1,7 @@
 [package]
 name = "revu"
 version = "0.1.0"
-description = "A local code reviewer for AI coding agents"
+description = "Desktop Git diff reviewer for AI coding agents"
 authors = ["you"]
 edition = "2021"
 
