@@ -16,7 +16,7 @@ AI coding agents like Claude Code, OpenCode, and Codex work directly in your loc
 
 revu bridges this gap: a desktop review interface that exports structured feedback agents can consume.
 
-Inspired by [Conductor](https://conductor.dev)'s working directory review feature.
+Inspired by [Conductor](https://www.conductor.build/)'s working directory review feature.
 
 ## Features
 
