@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useGitStore } from "@/stores/gitStore";
@@ -25,8 +25,7 @@ export default function App() {
     setShowCommentsPanel,
     sidebarWidth,
   } = useUiStore();
-  const [pathInput, setPathInput] = useState("");
-
+  
   // Sync comment store's repo path with git store
   useEffect(() => {
     if (repoPath) {
@@ -38,7 +37,6 @@ export default function App() {
   useEffect(() => {
     const unlisten = listen<string>("open-repo", (event) => {
       const path = event.payload;
-      setPathInput(path);
       setRepoPath(path);
     });
 
@@ -84,12 +82,6 @@ export default function App() {
     prevCommentCount.current = currentCount;
   }, [comments.length, showCommentsPanel, setShowCommentsPanel]);
 
-  const handleOpenRepo = () => {
-    if (pathInput.trim()) {
-      setRepoPath(pathInput.trim());
-    }
-  };
-
   const handleBrowse = async () => {
     const selected = await open({
       directory: true,
@@ -97,7 +89,6 @@ export default function App() {
       title: "Select Git Repository",
     });
     if (selected) {
-      setPathInput(selected);
       setRepoPath(selected);
     }
   };
@@ -105,44 +96,49 @@ export default function App() {
   return (
     <ThemeProvider>
       <div className="h-full flex flex-col bg-white dark:bg-gray-900">
-        {/* Header */}
-        <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              revu
-            </h1>
-            {status?.branch && (
-              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                  />
-                </svg>
-                {status.branch}
-              </span>
-            )}
-          </div>
-
+        {/* Header / Titlebar */}
+        <header
+          data-tauri-drag-region
+          className="flex-shrink-0 flex items-center justify-end pl-20 pr-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+        >
           <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={pathInput}
-              onChange={(e) => setPathInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleOpenRepo()}
-              placeholder="Repository path..."
-              className="w-64 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-            />
-            <Button variant="secondary" size="sm" onClick={handleBrowse}>
-              Browse...
-            </Button>
+            <button
+              onClick={handleBrowse}
+              className="flex items-center gap-2 px-3 py-1 text-sm rounded hover:bg-gray-200 dark:hover:bg-gray-700 select-none cursor-default"
+            >
+              {repoPath ? (
+                <>
+                  <span className="text-gray-900 dark:text-gray-100 font-medium">
+                    {repoPath.split("/").pop()}
+                  </span>
+                  {status?.branch && (
+                    <>
+                      <span className="text-gray-400 dark:text-gray-500">/</span>
+                      <svg
+                        className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                        />
+                      </svg>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {status.branch}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span className="text-gray-400 dark:text-gray-500">
+                  Open repository...
+                </span>
+              )}
+            </button>
             <Button
               variant="ghost"
               size="sm"

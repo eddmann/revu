@@ -7,7 +7,7 @@
 A desktop Git diff reviewer with inline commenting, designed for local code review workflows with AI coding agents.
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="revu screenshot" width="800">
+  <img src="docs/screenshot-dark.png" alt="revu screenshot" width="800">
 </p>
 
 ## Why revu?

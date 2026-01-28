@@ -39,3 +39,16 @@ body {
 .no-select {
   user-select: none;
 }
+
+/* Enable titlebar drag on elements with this attribute */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+/* Disable drag on interactive elements within drag region */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] [data-no-drag] {
+  -webkit-app-region: no-drag;
+}
