@@ -2,22 +2,39 @@ mod commands;
 mod error;
 mod git;
 
+use clap::Parser;
 use commands::*;
 use std::env;
+use std::path::PathBuf;
 use tauri::Emitter;
+
+#[derive(Parser, Debug)]
+#[command(name = "revu")]
+#[command(about = "Desktop Git diff reviewer for AI coding agents")]
+#[command(version)]
+struct Args {
+    /// Path to a Git repository (defaults to current directory)
+    #[arg(value_name = "PATH")]
+    path: Option<PathBuf>,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Collect CLI arguments - first arg after binary name is the repo path
-    let args: Vec<String> = env::args().collect();
-    let initial_repo_path = args.get(1).cloned();
+    let args = Args::parse();
+
+    // Use provided path or default to current working directory
+    let repo_path = args
+        .path
+        .or_else(|| env::current_dir().ok())
+        .and_then(|p| p.canonicalize().ok())
+        .map(|p| p.to_string_lossy().to_string());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
-            // If a repo path was provided via CLI, emit it to the frontend
-            if let Some(ref path) = initial_repo_path {
+            // Always emit repo path (either provided or current directory)
+            if let Some(ref path) = repo_path {
                 let path_clone = path.clone();
                 let handle = app.handle().clone();
                 // Emit after a short delay to ensure frontend is ready
