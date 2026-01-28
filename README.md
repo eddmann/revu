@@ -46,6 +46,10 @@ Inspired by [Conductor](https://www.conductor.build/)'s working directory review
 brew install eddmann/tap/revu
 ```
 
+### Direct Download (DMG)
+
+Download the latest `.dmg` file from [GitHub Releases](https://github.com/eddmann/revu/releases), open it, and drag revu to your Applications folder.
+
 ### Build from Source
 
 ```bash
