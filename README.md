@@ -72,7 +72,7 @@ cp -r src-tauri/target/release/bundle/macos/revu.app /Applications/
 Open revu and browse to a Git repository, or launch from the command line:
 
 ```bash
-open -a revu --args /path/to/your/repo
+revu /path/to/repo
 ```
 
 ### With Coding Agents
@@ -136,6 +136,7 @@ make lint       # Run linting checks
 ```
 
 **Prerequisites:**
+
 - Bun
 - Rust toolchain
 - Tauri CLI (`bun add -g @tauri-apps/cli`)
