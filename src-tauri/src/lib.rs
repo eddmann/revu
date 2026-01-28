@@ -18,12 +18,15 @@ pub fn run() {
         .setup(move |app| {
             // If a repo path was provided via CLI, emit it to the frontend
             if let Some(ref path) = initial_repo_path {
-                let path_clone = path.clone();
+                // Resolve relative paths (like ".") to absolute paths
+                let resolved_path = std::fs::canonicalize(path)
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| path.clone());
                 let handle = app.handle().clone();
                 // Emit after a short delay to ensure frontend is ready
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(500));
-                    let _ = handle.emit("open-repo", path_clone);
+                    let _ = handle.emit("open-repo", resolved_path);
                 });
             }
             Ok(())
