@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>revu - Desktop Git diff reviewer for AI coding agents</title>
+    <meta name="description" content="A desktop Git diff reviewer with inline commenting, designed for local code review workflows with AI coding agents.">
+    <meta name="author" content="eddmann">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0a0a0a">
+    <link rel="canonical" href="https://eddmann.com/revu/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://eddmann.com/revu/">
+    <meta property="og:title" content="revu - Desktop Git diff reviewer for AI coding agents">
+    <meta property="og:description" content="A desktop Git diff reviewer with inline commenting, designed for local code review workflows with AI coding agents.">
+    <meta property="og:image" content="https://eddmann.com/revu/logo.png">
+    <meta property="og:site_name" content="revu">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="revu - Desktop Git diff reviewer for AI coding agents">
+    <meta name="twitter:description" content="A desktop Git diff reviewer with inline commenting, designed for local code review workflows with AI coding agents.">
+    <meta name="twitter:image" content="https://eddmann.com/revu/logo.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bg': '#0a0a0a',
+                        'fg': '#fafafa',
+                        'muted': '#737373',
+                        'border': '#262626',
+                        'accent': '#a3a3a3',
+                    },
+                    fontFamily: {
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "revu",
+        "description": "A desktop Git diff reviewer with inline commenting, designed for local code review workflows with AI coding agents.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": ["macOS", "Linux"],
+        "author": {
+            "@type": "Person",
+            "name": "eddmann",
+            "url": "https://eddmann.com"
+        },
+        "url": "https://eddmann.com/revu/",
+        "downloadUrl": "https://github.com/eddmann/revu/releases/latest",
+        "softwareVersion": "latest",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        }
+    }
+    </script>
+
+    <style>
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: #0a0a0a;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        ::selection {
+            background: rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-bg text-fg min-h-screen">
+
+    <!-- Nav -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-sm border-b border-border/50">
+        <div class="max-w-5xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
+            <a href="#" class="flex items-center gap-2 text-sm uppercase tracking-[0.12em] text-fg hover:text-accent transition-colors">
+                <img src="logo.png" alt="" class="w-6 h-6" />
+                revu
+            </a>
+            <div class="hidden md:flex items-center gap-8">
+                <a href="#features" class="text-xs uppercase tracking-[0.12em] text-muted hover:text-fg transition-colors">Features</a>
+                <a href="#install" class="text-xs uppercase tracking-[0.12em] text-muted hover:text-fg transition-colors">Install</a>
+                <a href="https://github.com/eddmann/revu" class="text-xs uppercase tracking-[0.12em] text-muted hover:text-fg transition-colors">GitHub</a>
+            </div>
+            <div class="md:hidden flex items-center gap-6">
+                <a href="#install" class="text-xs uppercase tracking-[0.12em] text-muted hover:text-fg transition-colors">Install</a>
+                <a href="https://github.com/eddmann/revu" class="text-xs uppercase tracking-[0.12em] text-muted hover:text-fg transition-colors">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="pt-32 pb-24 px-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="mb-16">
+                <p class="text-muted text-sm mb-6">// desktop git diff reviewer</p>
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-medium leading-[1.1] mb-8 max-w-3xl">
+                    Review local changes.<br>
+                    <span class="text-muted">Guide your AI agent.</span>
+                </h1>
+                <p class="text-muted text-lg max-w-xl leading-relaxed">
+                    Inline commenting for code changes that haven't been committed yet. Export structured feedback that agents can consume.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap gap-4 mb-20">
+                <a href="#install" class="inline-flex items-center px-6 py-3 bg-fg text-bg text-sm uppercase tracking-[0.08em] hover:bg-accent transition-colors">
+                    Install
+                </a>
+                <a href="https://github.com/eddmann/revu" class="inline-flex items-center px-6 py-3 border border-border text-sm uppercase tracking-[0.08em] text-muted hover:text-fg hover:border-accent transition-colors">
+                    View on GitHub
+                </a>
+            </div>
+
+            <!-- Screenshot -->
+            <div class="border border-border/50 p-1">
+                <img src="screenshot-dark.png" alt="revu application" class="w-full" />
+            </div>
+        </div>
+    </section>
+
+    <!-- Divider -->
+    <div class="max-w-5xl mx-auto px-6">
+        <p class="text-muted/30 text-sm">//</p>
+    </div>
+
+    <!-- Features -->
+    <section id="features" class="py-24 px-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-16">
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">01</p>
+                    <h3 class="text-lg mb-3">Diff Views</h3>
+                    <p class="text-muted text-sm leading-relaxed">Unified and split views with syntax highlighting. Word-level change detection.</p>
+                </div>
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">02</p>
+                    <h3 class="text-lg mb-3">Inline Comments</h3>
+                    <p class="text-muted text-sm leading-relaxed">Click any line to add feedback. Categorize as issue, suggestion, question, nitpick, or praise.</p>
+                </div>
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">03</p>
+                    <h3 class="text-lg mb-3">Send to Agent</h3>
+                    <p class="text-muted text-sm leading-relaxed">Export structured XML review to .revu file. Agents parse and act on your feedback.</p>
+                </div>
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">04</p>
+                    <h3 class="text-lg mb-3">Stage & Commit</h3>
+                    <p class="text-muted text-sm leading-relaxed">Manage file staging directly. Create commits without leaving the review interface.</p>
+                </div>
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">05</p>
+                    <h3 class="text-lg mb-3">CLI Integration</h3>
+                    <p class="text-muted text-sm leading-relaxed">Open with a path: revu /path/to/repo. Works with any git repository.</p>
+                </div>
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">06</p>
+                    <h3 class="text-lg mb-3">Themes</h3>
+                    <p class="text-muted text-sm leading-relaxed">Light and dark modes with system preference detection. Keyboard shortcuts throughout.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Divider -->
+    <div class="max-w-5xl mx-auto px-6">
+        <p class="text-muted/30 text-sm">//</p>
+    </div>
+
+    <!-- Install -->
+    <section id="install" class="py-24 px-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-16">
+                <div>
+                    <p class="text-muted/50 text-sm mb-4">// install</p>
+                    <h2 class="text-2xl md:text-3xl mb-6">Get started</h2>
+                    <p class="text-muted leading-relaxed mb-8">
+                        Install via Homebrew or download directly from GitHub releases. Available for macOS (Apple Silicon and Intel) and Linux.
+                    </p>
+                    <div class="flex flex-wrap gap-3 text-xs text-muted">
+                        <span class="px-2 py-1 border border-border/50">macOS</span>
+                        <span class="px-2 py-1 border border-border/50">Linux</span>
+                        <span class="px-2 py-1 border border-border/50">Apple Silicon</span>
+                        <span class="px-2 py-1 border border-border/50">Intel</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="border border-border/50 p-6 mb-4">
+                        <p class="text-muted/50 text-xs mb-3">// homebrew (recommended)</p>
+                        <code class="text-sm">brew install eddmann/tap/revu</code>
+                    </div>
+                    <div class="border border-border/50 p-6 mb-4">
+                        <p class="text-muted/50 text-xs mb-3">// open a repository</p>
+                        <code class="text-sm">revu /path/to/repo</code>
+                    </div>
+                    <a href="https://github.com/eddmann/revu/releases/latest" class="inline-flex items-center text-sm text-muted hover:text-fg transition-colors">
+                        Download from GitHub &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Divider -->
+    <div class="max-w-5xl mx-auto px-6">
+        <p class="text-muted/30 text-sm">//</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="py-16 px-6">
+        <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div>
+                <p class="text-sm uppercase tracking-[0.12em] mb-2">revu</p>
+                <p class="text-muted text-xs">MIT License</p>
+            </div>
+            <div class="flex items-center gap-8">
+                <a href="https://github.com/eddmann/revu" class="text-xs text-muted hover:text-fg transition-colors uppercase tracking-[0.08em]">GitHub</a>
+                <a href="https://github.com/eddmann/revu/releases" class="text-xs text-muted hover:text-fg transition-colors uppercase tracking-[0.08em]">Releases</a>
+                <a href="https://eddmann.com" class="text-xs text-muted hover:text-fg transition-colors uppercase tracking-[0.08em]">@eddmann</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
