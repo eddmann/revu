@@ -83,7 +83,14 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 0.01ms !important;
+                animation-delay: 0ms !important;
                 transition-duration: 0.01ms !important;
+            }
+            .opacity-0-initial {
+                opacity: 1;
+            }
+            .feature-card:hover {
+                transform: none;
             }
         }
 
@@ -103,6 +110,45 @@
 
         ::selection {
             background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Animation keyframes */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Animation utilities */
+        .animate-fade-in-up {
+            opacity: 0;
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .opacity-0-initial {
+            opacity: 0;
+        }
+
+        /* Stagger delays */
+        .stagger-1 { animation-delay: 0.1s !important; }
+        .stagger-2 { animation-delay: 0.2s !important; }
+        .stagger-3 { animation-delay: 0.3s !important; }
+        .stagger-4 { animation-delay: 0.4s !important; }
+        .stagger-5 { animation-delay: 0.5s !important; }
+        .stagger-6 { animation-delay: 0.6s !important; }
+
+        /* Feature card hover effect */
+        .feature-card {
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
         }
     </style>
 </head>
@@ -131,17 +177,17 @@
     <section class="pt-32 pb-24 px-6">
         <div class="max-w-5xl mx-auto">
             <div class="mb-16">
-                <p class="text-muted text-sm mb-6">// desktop git diff reviewer</p>
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-medium leading-[1.1] mb-8 max-w-3xl">
+                <p class="text-muted text-sm mb-6 animate-fade-in-up stagger-1">// desktop git diff reviewer</p>
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-medium leading-[1.1] mb-8 max-w-3xl animate-fade-in-up stagger-2">
                     Review local changes.<br>
                     <span class="text-muted">Guide your AI agent.</span>
                 </h1>
-                <p class="text-muted text-lg max-w-xl leading-relaxed">
+                <p class="text-muted text-lg max-w-xl leading-relaxed animate-fade-in-up stagger-3">
                     Inline commenting for code changes that haven't been committed yet. Export structured feedback that agents can consume.
                 </p>
             </div>
 
-            <div class="flex flex-wrap gap-4 mb-20">
+            <div class="flex flex-wrap gap-4 mb-20 animate-fade-in-up stagger-4">
                 <a href="#install" class="inline-flex items-center px-6 py-3 bg-fg text-bg text-sm uppercase tracking-[0.08em] hover:bg-accent transition-colors">
                     Install
                 </a>
@@ -151,7 +197,7 @@
             </div>
 
             <!-- Screenshot -->
-            <div class="border border-border/50 p-1">
+            <div class="border border-border/50 p-1 animate-fade-in-up stagger-5">
                 <img src="screenshot-dark.png" alt="revu application" class="w-full" />
             </div>
         </div>
@@ -166,32 +212,32 @@
     <section id="features" class="py-24 px-6">
         <div class="max-w-5xl mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-16">
-                <div>
+                <div class="feature-card opacity-0-initial stagger-1">
                     <p class="text-muted/50 text-sm mb-4">01</p>
                     <h3 class="text-lg mb-3">Diff Views</h3>
                     <p class="text-muted text-sm leading-relaxed">Unified and split views with syntax highlighting. Word-level change detection.</p>
                 </div>
-                <div>
+                <div class="feature-card opacity-0-initial stagger-2">
                     <p class="text-muted/50 text-sm mb-4">02</p>
                     <h3 class="text-lg mb-3">Inline Comments</h3>
                     <p class="text-muted text-sm leading-relaxed">Click any line to add feedback. Categorize as issue, suggestion, question, nitpick, or praise.</p>
                 </div>
-                <div>
+                <div class="feature-card opacity-0-initial stagger-3">
                     <p class="text-muted/50 text-sm mb-4">03</p>
                     <h3 class="text-lg mb-3">Send to Agent</h3>
                     <p class="text-muted text-sm leading-relaxed">Export structured XML review to .revu file. Agents parse and act on your feedback.</p>
                 </div>
-                <div>
+                <div class="feature-card opacity-0-initial stagger-4">
                     <p class="text-muted/50 text-sm mb-4">04</p>
                     <h3 class="text-lg mb-3">Stage & Commit</h3>
                     <p class="text-muted text-sm leading-relaxed">Manage file staging directly. Create commits without leaving the review interface.</p>
                 </div>
-                <div>
+                <div class="feature-card opacity-0-initial stagger-5">
                     <p class="text-muted/50 text-sm mb-4">05</p>
                     <h3 class="text-lg mb-3">CLI Integration</h3>
                     <p class="text-muted text-sm leading-relaxed">Open with a path: revu /path/to/repo. Works with any git repository.</p>
                 </div>
-                <div>
+                <div class="feature-card opacity-0-initial stagger-6">
                     <p class="text-muted/50 text-sm mb-4">06</p>
                     <h3 class="text-lg mb-3">Themes</h3>
                     <p class="text-muted text-sm leading-relaxed">Light and dark modes with system preference detection. Keyboard shortcuts throughout.</p>
@@ -209,7 +255,7 @@
     <section id="install" class="py-24 px-6">
         <div class="max-w-5xl mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-16">
-                <div>
+                <div class="opacity-0-initial stagger-1">
                     <p class="text-muted/50 text-sm mb-4">// install</p>
                     <h2 class="text-2xl md:text-3xl mb-6">Get started</h2>
                     <p class="text-muted leading-relaxed mb-8">
@@ -222,7 +268,7 @@
                         <span class="px-2 py-1 border border-border/50">Intel</span>
                     </div>
                 </div>
-                <div>
+                <div class="opacity-0-initial stagger-2">
                     <div class="border border-border/50 p-6 mb-4">
                         <p class="text-muted/50 text-xs mb-3">// homebrew (recommended)</p>
                         <code class="text-sm">brew install eddmann/tap/revu</code>
@@ -258,6 +304,22 @@
             </div>
         </div>
     </footer>
+
+    <script>
+        // Scroll-triggered animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.remove('opacity-0-initial');
+                    entry.target.classList.add('animate-fade-in-up');
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+        document.querySelectorAll('.opacity-0-initial').forEach(el => {
+            observer.observe(el);
+        });
+    </script>
 
 </body>
 </html>
