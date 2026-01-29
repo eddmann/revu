@@ -3,6 +3,7 @@ import { clsx } from "clsx";
 import { invoke } from "@tauri-apps/api/core";
 import { useCommentStore } from "@/stores/commentStore";
 import { useGitStore } from "@/stores/gitStore";
+import { useUiStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui";
 import { HighlightedContent } from "@/features/diff/HighlightedContent";
 import { getLanguageFromPath } from "@/lib/syntax";
@@ -28,11 +29,22 @@ export function CommentList() {
     clearAllComments,
     setDraft,
   } = useCommentStore();
-  const { repoPath } = useGitStore();
+  const { repoPath, status, selectFile } = useGitStore();
+  const { setScrollToLine } = useUiStore();
   const comments = getAllComments();
   const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent">(
     "idle",
   );
+
+  const handleNavigate = (comment: Comment) => {
+    // Find the file in status and select it
+    const file = status?.files.find((f) => f.path === comment.filePath);
+    if (file) {
+      selectFile(file);
+      // Set the scroll target after selecting the file
+      setScrollToLine({ line: comment.startLine, isOld: comment.isOld });
+    }
+  };
 
   const handleCopyMarkdown = async () => {
     const markdown = exportToMarkdown();
@@ -116,6 +128,7 @@ export function CommentList() {
                 existingCategory: comment.category,
               })
             }
+            onNavigate={() => handleNavigate(comment)}
           />
         ))}
       </div>
@@ -127,9 +140,10 @@ interface CommentCardProps {
   comment: Comment;
   onDelete: () => void;
   onEdit: () => void;
+  onNavigate: () => void;
 }
 
-function CommentCard({ comment, onDelete, onEdit }: CommentCardProps) {
+function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps) {
   const lineRef =
     comment.startLine === comment.endLine
       ? `Line ${comment.startLine}`
@@ -172,27 +186,52 @@ function CommentCard({ comment, onDelete, onEdit }: CommentCardProps) {
             {comment.filePath}
           </p>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="flex-shrink-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="flex-shrink-0 flex gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigate();
+            }}
+            className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
+            title="Go to line"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+            title="Delete comment"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {comment.codeSnippet && (

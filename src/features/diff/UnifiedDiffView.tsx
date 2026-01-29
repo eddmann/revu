@@ -1,8 +1,9 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { FileDiff } from "@/types/git";
 import type { Comment } from "@/types/comment";
 import type { DiffSegment } from "@/lib/wordDiff";
+import type { ScrollToLine } from "@/stores/uiStore";
 import { computeWordDiff, mergeSegments } from "@/lib/wordDiff";
 import { getLanguageFromPath } from "@/lib/syntax";
 import { DiffLine } from "./DiffLine";
@@ -16,10 +17,13 @@ interface UnifiedDiffViewProps {
     content: string,
     shiftKey: boolean,
   ) => void;
+  onContentClick: (comment: Comment) => void;
   onLineHover: (lineNo: number | null) => void;
   rangeSelectionStart?: number | null;
   rangeSelectionIsOld?: boolean | null;
   hoveredLine?: number | null;
+  scrollToLine?: ScrollToLine | null;
+  onScrollComplete?: () => void;
 }
 
 interface FlatLine {
@@ -35,10 +39,13 @@ export function UnifiedDiffView({
   diff,
   comments,
   onLineClick,
+  onContentClick,
   onLineHover,
   rangeSelectionStart,
   rangeSelectionIsOld,
   hoveredLine,
+  scrollToLine,
+  onScrollComplete,
 }: UnifiedDiffViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const language = getLanguageFromPath(diff.path);
@@ -110,6 +117,26 @@ export function UnifiedDiffView({
     estimateSize: () => 24,
     overscan: 20,
   });
+
+  // Scroll to target line when scrollToLine changes
+  useEffect(() => {
+    if (!scrollToLine) return;
+
+    // Find the index in flatLines that matches the target
+    const targetIndex = flatLines.findIndex((item) => {
+      if (item.type !== "line" || !item.line) return false;
+      const line = item.line;
+      const isOld = line.lineType === "deletion";
+      const lineNo = isOld ? line.oldLineNo : line.newLineNo;
+      return lineNo === scrollToLine.line && isOld === scrollToLine.isOld;
+    });
+
+    if (targetIndex !== -1) {
+      virtualizer.scrollToIndex(targetIndex, { align: "center" });
+    }
+
+    onScrollComplete?.();
+  }, [scrollToLine, flatLines, virtualizer, onScrollComplete]);
 
   const getLineComments = (lineNo: number | undefined, isOld: boolean) => {
     if (lineNo === undefined) return [];
@@ -187,6 +214,7 @@ export function UnifiedDiffView({
                 lineIndex={virtualRow.index}
                 comments={lineComments}
                 onLineClick={onLineClick}
+                onContentClick={onContentClick}
                 onLineHover={onLineHover}
                 language={language}
                 diffSegments={item.diffSegments}

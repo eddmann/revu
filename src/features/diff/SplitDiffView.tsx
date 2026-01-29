@@ -1,9 +1,10 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { clsx } from "clsx";
 import type { FileDiff, DiffLine as DiffLineType } from "@/types/git";
 import type { Comment } from "@/types/comment";
 import type { DiffSegment } from "@/lib/wordDiff";
+import type { ScrollToLine } from "@/stores/uiStore";
 import { computeWordDiff, mergeSegments } from "@/lib/wordDiff";
 import { getLanguageFromPath } from "@/lib/syntax";
 import { HighlightedContent } from "./HighlightedContent";
@@ -17,10 +18,13 @@ interface SplitDiffViewProps {
     content: string,
     shiftKey: boolean,
   ) => void;
+  onContentClick: (comment: Comment) => void;
   onLineHover: (lineNo: number | null) => void;
   rangeSelectionStart?: number | null;
   rangeSelectionIsOld?: boolean | null;
   hoveredLine?: number | null;
+  scrollToLine?: ScrollToLine | null;
+  onScrollComplete?: () => void;
 }
 
 interface SplitLine {
@@ -36,10 +40,13 @@ export function SplitDiffView({
   diff,
   comments,
   onLineClick,
+  onContentClick,
   onLineHover,
   rangeSelectionStart,
   rangeSelectionIsOld,
   hoveredLine,
+  scrollToLine,
+  onScrollComplete,
 }: SplitDiffViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +143,29 @@ export function SplitDiffView({
 
   const language = getLanguageFromPath(diff.path);
 
+  // Scroll to target line when scrollToLine changes
+  useEffect(() => {
+    if (!scrollToLine) return;
+
+    // Find the index in splitLines that matches the target
+    const targetIndex = splitLines.findIndex((row) => {
+      if (row.isHunkHeader) return false;
+      if (scrollToLine.isOld) {
+        // Look in left side (old/deletions)
+        return row.left?.oldLineNo === scrollToLine.line;
+      } else {
+        // Look in right side (new/additions)
+        return row.right?.newLineNo === scrollToLine.line;
+      }
+    });
+
+    if (targetIndex !== -1) {
+      virtualizer.scrollToIndex(targetIndex, { align: "center" });
+    }
+
+    onScrollComplete?.();
+  }, [scrollToLine, splitLines, virtualizer, onScrollComplete]);
+
   const getLineComments = (lineNo: number | undefined, isOld: boolean) => {
     if (lineNo === undefined) return [];
     return comments.filter(
@@ -208,6 +238,7 @@ export function SplitDiffView({
                 isLeft={true}
                 comments={getLineComments(row.left?.oldLineNo, true)}
                 onLineClick={onLineClick}
+                onContentClick={onContentClick}
                 onLineHover={onLineHover}
                 language={language}
                 diffSegments={row.leftDiffSegments}
@@ -232,6 +263,7 @@ export function SplitDiffView({
                 isLeft={false}
                 comments={getLineComments(row.right?.newLineNo, false)}
                 onLineClick={onLineClick}
+                onContentClick={onContentClick}
                 onLineHover={onLineHover}
                 language={language}
                 diffSegments={row.rightDiffSegments}
@@ -268,6 +300,7 @@ interface SplitSideProps {
     content: string,
     shiftKey: boolean,
   ) => void;
+  onContentClick: (comment: Comment) => void;
   onLineHover: (lineNo: number | null) => void;
   language: ReturnType<typeof getLanguageFromPath>;
   diffSegments?: DiffSegment[];
@@ -280,6 +313,7 @@ function SplitSide({
   isLeft,
   comments,
   onLineClick,
+  onContentClick,
   onLineHover,
   language,
   diffSegments,
@@ -299,6 +333,22 @@ function SplitSide({
   const handleClick = (e: React.MouseEvent) => {
     if (lineNo !== undefined) {
       onLineClick(lineNo, isLeft, line.content, e.shiftKey);
+    }
+  };
+
+  const handleContentClick = () => {
+    // Don't trigger if text is being selected
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+
+    if (hasComments) {
+      // Find the most recent comment by createdAt
+      const latestComment = comments.reduce((latest, comment) =>
+        comment.createdAt > latest.createdAt ? comment : latest,
+      );
+      onContentClick(latestComment);
     }
   };
 
@@ -375,7 +425,10 @@ function SplitSide({
             ? "-"
             : " "}
       </span>
-      <span className="flex-1 whitespace-pre">
+      <span
+        className={clsx("flex-1 whitespace-pre", hasComments && "cursor-pointer")}
+        onClick={handleContentClick}
+      >
         <HighlightedContent
           content={line.content}
           language={language}

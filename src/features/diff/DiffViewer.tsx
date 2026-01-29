@@ -4,6 +4,7 @@ import { useCommentStore } from "@/stores/commentStore";
 import { useUiStore } from "@/stores/uiStore";
 import { UnifiedDiffView } from "./UnifiedDiffView";
 import { SplitDiffView } from "./SplitDiffView";
+import type { Comment } from "@/types/comment";
 
 export function DiffViewer() {
   const { currentDiff, selectedFile, fetchDiff } = useGitStore();
@@ -15,6 +16,8 @@ export function DiffViewer() {
     setShowFullFileContext,
     ignoreWhitespace,
     setIgnoreWhitespace,
+    scrollToLine,
+    setScrollToLine,
   } = useUiStore();
   const [rangeStart, setRangeStart] = useState<{
     lineNo: number;
@@ -100,6 +103,22 @@ export function DiffViewer() {
   const handleLineHover = useCallback((lineNo: number | null) => {
     setHoveredLine(lineNo);
   }, []);
+
+  const handleContentClick = useCallback(
+    (comment: Comment) => {
+      setDraft({
+        filePath: comment.filePath,
+        startLine: comment.startLine,
+        endLine: comment.endLine,
+        codeSnippet: comment.codeSnippet,
+        isOld: comment.isOld,
+        editingId: comment.id,
+        existingContent: comment.content,
+        existingCategory: comment.category,
+      });
+    },
+    [setDraft],
+  );
 
   if (!currentDiff || !selectedFile) {
     return (
@@ -214,20 +233,26 @@ export function DiffViewer() {
             diff={currentDiff}
             comments={comments}
             onLineClick={handleLineClick}
+            onContentClick={handleContentClick}
             onLineHover={handleLineHover}
             rangeSelectionStart={rangeStart?.lineNo ?? null}
             rangeSelectionIsOld={rangeStart?.isOld ?? null}
             hoveredLine={rangeStart ? hoveredLine : null}
+            scrollToLine={scrollToLine}
+            onScrollComplete={() => setScrollToLine(null)}
           />
         ) : (
           <SplitDiffView
             diff={currentDiff}
             comments={comments}
             onLineClick={handleLineClick}
+            onContentClick={handleContentClick}
             onLineHover={handleLineHover}
             rangeSelectionStart={rangeStart?.lineNo ?? null}
             rangeSelectionIsOld={rangeStart?.isOld ?? null}
             hoveredLine={rangeStart ? hoveredLine : null}
+            scrollToLine={scrollToLine}
+            onScrollComplete={() => setScrollToLine(null)}
           />
         )}
       </div>

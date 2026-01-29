@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useGitStore } from "@/stores/gitStore";
+import { useCommentStore } from "@/stores/commentStore";
 import { Button } from "@/components/ui";
 import { FileItem } from "./FileItem";
 
@@ -13,6 +14,8 @@ export function FileList() {
     stageAll,
     unstageAll,
   } = useGitStore();
+  const comments = useCommentStore((state) => state.comments);
+  const currentRepoPath = useCommentStore((state) => state.currentRepoPath);
 
   const { stagedFiles, unstagedFiles } = useMemo(() => {
     if (!status) return { stagedFiles: [], unstagedFiles: [] };
@@ -22,6 +25,16 @@ export function FileList() {
 
     return { stagedFiles: staged, unstagedFiles: unstaged };
   }, [status]);
+
+  const commentCountByFile = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!currentRepoPath) return counts;
+    const repoComments = comments[currentRepoPath] || {};
+    for (const [filePath, fileComments] of Object.entries(repoComments)) {
+      counts[filePath] = fileComments.length;
+    }
+    return counts;
+  }, [comments, currentRepoPath]);
 
   const handleStageToggle = (file: (typeof stagedFiles)[0]) => {
     if (file.staged) {
@@ -70,6 +83,7 @@ export function FileList() {
                 }
                 onSelect={() => selectFile(file)}
                 onStageToggle={() => handleStageToggle(file)}
+                commentCount={commentCountByFile[file.path] || 0}
               />
             ))}
           </div>
@@ -97,6 +111,7 @@ export function FileList() {
                 }
                 onSelect={() => selectFile(file)}
                 onStageToggle={() => handleStageToggle(file)}
+                commentCount={commentCountByFile[file.path] || 0}
               />
             ))}
           </div>

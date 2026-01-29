@@ -15,6 +15,7 @@ interface DiffLineProps {
     content: string,
     shiftKey: boolean,
   ) => void;
+  onContentClick?: (comment: Comment) => void;
   onLineHover?: (lineNo: number | null) => void;
   showOldLineNo?: boolean;
   showNewLineNo?: boolean;
@@ -44,6 +45,7 @@ export function DiffLine({
   line,
   comments,
   onLineClick,
+  onContentClick,
   onLineHover,
   showOldLineNo = true,
   showNewLineNo = true,
@@ -62,6 +64,22 @@ export function DiffLine({
   const handleClick = (e: React.MouseEvent) => {
     if (lineNo !== undefined) {
       onLineClick(lineNo, isOld, line.content, e.shiftKey);
+    }
+  };
+
+  const handleContentClick = () => {
+    // Don't trigger if text is being selected
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+
+    if (hasComments && onContentClick) {
+      // Find the most recent comment by createdAt
+      const latestComment = comments.reduce((latest, comment) =>
+        comment.createdAt > latest.createdAt ? comment : latest,
+      );
+      onContentClick(latestComment);
     }
   };
 
@@ -140,7 +158,10 @@ export function DiffLine({
       >
         {prefix}
       </span>
-      <span className="flex-1 whitespace-pre">
+      <span
+        className={clsx("flex-1 whitespace-pre", hasComments && "cursor-pointer")}
+        onClick={handleContentClick}
+      >
         <HighlightedContent
           content={line.content}
           language={language}

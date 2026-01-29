@@ -7,6 +7,7 @@ interface FileItemProps {
   isSelected: boolean;
   onSelect: () => void;
   onStageToggle: () => void;
+  commentCount: number;
 }
 
 const statusConfig: Record<FileStatus, { label: string; color: string }> = {
@@ -25,6 +26,7 @@ export function FileItem({
   isSelected,
   onSelect,
   onStageToggle,
+  commentCount,
 }: FileItemProps) {
   const { label, color } = statusConfig[file.status];
   const fileName = file.path.split("/").pop() || file.path;
@@ -66,6 +68,12 @@ export function FileItem({
           </span>
         )}
       </div>
+
+      {commentCount > 0 && (
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-yellow-400 dark:bg-yellow-500 text-yellow-900 dark:text-yellow-900 text-xs font-bold">
+          {commentCount}
+        </span>
+      )}
     </div>
   );
 }
