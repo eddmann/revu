@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { clsx } from "clsx";
 import type { FileDiff, DiffLine as DiffLineType } from "@/types/git";
@@ -48,25 +48,37 @@ export function SplitDiffView({
   scrollToLine,
   onScrollComplete,
 }: SplitDiffViewProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+  const isScrollSyncing = useRef(false);
 
-  // Calculate max line width for horizontal scroll sizing
-  // Absolutely positioned children don't contribute to parent intrinsic size,
-  // so we need to calculate and set the width explicitly
-  const maxContentWidth = useMemo(() => {
-    let maxChars = 0;
+  // Calculate max line width for each side (left = deletions/context, right = additions/context)
+  const { leftMaxChars, rightMaxChars } = useMemo(() => {
+    let leftMax = 0;
+    let rightMax = 0;
     for (const hunk of diff.hunks) {
       for (const line of hunk.lines) {
-        if (line.content.length > maxChars) {
-          maxChars = line.content.length;
+        const len = line.content.length;
+        if (line.lineType === "deletion") {
+          if (len > leftMax) leftMax = len;
+        } else if (line.lineType === "addition") {
+          if (len > rightMax) rightMax = len;
+        } else {
+          // Context lines appear on both sides
+          if (len > leftMax) leftMax = len;
+          if (len > rightMax) rightMax = len;
         }
       }
     }
-    // Each side: line number (40px) + prefix (20px) + content + divider
-    // Using ch units for accurate monospace width estimation
-    // Multiply by 2 for split view (both sides need space)
-    return maxChars > 0 ? `calc(${maxChars}ch + 150px)` : undefined;
+    return { leftMaxChars: leftMax, rightMaxChars: rightMax };
   }, [diff.hunks]);
+
+  // Calculate min-width for each pane's content (same pattern as unified view)
+  // gutter (40px) + prefix (20px) + content + padding
+  const leftMinWidth =
+    leftMaxChars > 0 ? `calc(${leftMaxChars}ch + 80px)` : undefined;
+  const rightMinWidth =
+    rightMaxChars > 0 ? `calc(${rightMaxChars}ch + 80px)` : undefined;
 
   const splitLines = useMemo(() => {
     const result: SplitLine[] = [];
@@ -134,14 +146,38 @@ export function SplitDiffView({
     return result;
   }, [diff.hunks]);
 
+  // Virtualizer attached to RIGHT pane (primary scroll - has visible scrollbar)
   const virtualizer = useVirtualizer({
     count: splitLines.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => rightScrollRef.current,
     estimateSize: () => 24,
     overscan: 20,
   });
 
   const language = getLanguageFromPath(diff.path);
+
+  // Sync vertical scroll between panes (both directions)
+  const handleRightScroll = useCallback(() => {
+    if (isScrollSyncing.current) return;
+    isScrollSyncing.current = true;
+    if (leftScrollRef.current && rightScrollRef.current) {
+      leftScrollRef.current.scrollTop = rightScrollRef.current.scrollTop;
+    }
+    requestAnimationFrame(() => {
+      isScrollSyncing.current = false;
+    });
+  }, []);
+
+  const handleLeftScroll = useCallback(() => {
+    if (isScrollSyncing.current) return;
+    isScrollSyncing.current = true;
+    if (leftScrollRef.current && rightScrollRef.current) {
+      rightScrollRef.current.scrollTop = leftScrollRef.current.scrollTop;
+    }
+    requestAnimationFrame(() => {
+      isScrollSyncing.current = false;
+    });
+  }, []);
 
   // Scroll to target line when scrollToLine changes
   useEffect(() => {
@@ -166,12 +202,15 @@ export function SplitDiffView({
     onScrollComplete?.();
   }, [scrollToLine, splitLines, virtualizer, onScrollComplete]);
 
-  const getLineComments = (lineNo: number | undefined, isOld: boolean) => {
-    if (lineNo === undefined) return [];
-    return comments.filter(
-      (c) => c.isOld === isOld && c.startLine <= lineNo && c.endLine >= lineNo,
-    );
-  };
+  const getLineComments = useCallback(
+    (lineNo: number | undefined, isOld: boolean) => {
+      if (lineNo === undefined) return [];
+      return comments.filter(
+        (c) => c.isOld === isOld && c.startLine <= lineNo && c.endLine >= lineNo,
+      );
+    },
+    [comments],
+  );
 
   if (diff.isBinary) {
     return (
@@ -189,22 +228,132 @@ export function SplitDiffView({
     );
   }
 
-  return (
-    <div ref={parentRef} className="h-full overflow-auto">
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          minWidth: maxContentWidth ?? "100%",
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const row = splitLines[virtualRow.index];
+  const totalSize = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
 
-          if (row.isHunkHeader) {
+  return (
+    <div className="h-full flex">
+      {/* Left pane - scrollbar hidden via overflow-hidden wrapper */}
+      <div className="w-1/2 h-full overflow-hidden">
+        <div
+          ref={leftScrollRef}
+          className="h-full overflow-auto"
+          onScroll={handleLeftScroll}
+          style={{ marginRight: -20, paddingRight: 20 }}
+        >
+          <div
+            style={{
+              height: `${totalSize}px`,
+              minWidth: leftMinWidth,
+              position: "relative",
+            }}
+          >
+            {virtualItems.map((virtualRow) => {
+              const row = splitLines[virtualRow.index];
+
+              if (row.isHunkHeader) {
+                return (
+                  <div
+                    key={`left-${virtualRow.key}`}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-mono text-sm px-4 py-0.5 border-y border-blue-200 dark:border-blue-800"
+                  >
+                    {row.hunkHeader}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={`left-${virtualRow.key}`}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <SplitSide
+                    line={row.left}
+                    isLeft={true}
+                    comments={getLineComments(row.left?.oldLineNo, true)}
+                    onLineClick={onLineClick}
+                    onContentClick={onContentClick}
+                    onLineHover={onLineHover}
+                    language={language}
+                    diffSegments={row.leftDiffSegments}
+                    isRangeSelectionStart={
+                      rangeSelectionIsOld === true &&
+                      row.left?.oldLineNo === rangeSelectionStart
+                    }
+                    isInRangePreview={
+                      rangeSelectionIsOld === true &&
+                      rangeSelectionStart != null &&
+                      hoveredLine != null &&
+                      row.left?.oldLineNo != null &&
+                      row.left.oldLineNo >=
+                        Math.min(rangeSelectionStart, hoveredLine) &&
+                      row.left.oldLineNo <=
+                        Math.max(rangeSelectionStart, hoveredLine)
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+
+      {/* Right pane - same pattern as unified view */}
+      <div
+        ref={rightScrollRef}
+        className="w-1/2 h-full overflow-auto"
+        onScroll={handleRightScroll}
+      >
+        <div
+          style={{
+            height: `${totalSize}px`,
+            minWidth: rightMinWidth,
+            position: "relative",
+          }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const row = splitLines[virtualRow.index];
+
+            if (row.isHunkHeader) {
+              return (
+                <div
+                  key={`right-${virtualRow.key}`}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-mono text-sm px-4 py-0.5 border-y border-blue-200 dark:border-blue-800"
+                >
+                  {row.hunkHeader}
+                </div>
+              );
+            }
+
             return (
               <div
-                key={virtualRow.key}
+                key={`right-${virtualRow.key}`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -213,78 +362,35 @@ export function SplitDiffView({
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-mono text-sm px-4 py-0.5 border-y border-blue-200 dark:border-blue-800"
               >
-                {row.hunkHeader}
+                <SplitSide
+                  line={row.right}
+                  isLeft={false}
+                  comments={getLineComments(row.right?.newLineNo, false)}
+                  onLineClick={onLineClick}
+                  onContentClick={onContentClick}
+                  onLineHover={onLineHover}
+                  language={language}
+                  diffSegments={row.rightDiffSegments}
+                  isRangeSelectionStart={
+                    rangeSelectionIsOld === false &&
+                    row.right?.newLineNo === rangeSelectionStart
+                  }
+                  isInRangePreview={
+                    rangeSelectionIsOld === false &&
+                    rangeSelectionStart != null &&
+                    hoveredLine != null &&
+                    row.right?.newLineNo != null &&
+                    row.right.newLineNo >=
+                      Math.min(rangeSelectionStart, hoveredLine) &&
+                    row.right.newLineNo <=
+                      Math.max(rangeSelectionStart, hoveredLine)
+                  }
+                />
               </div>
             );
-          }
-
-          return (
-            <div
-              key={virtualRow.key}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-              className="flex"
-            >
-              <SplitSide
-                line={row.left}
-                isLeft={true}
-                comments={getLineComments(row.left?.oldLineNo, true)}
-                onLineClick={onLineClick}
-                onContentClick={onContentClick}
-                onLineHover={onLineHover}
-                language={language}
-                diffSegments={row.leftDiffSegments}
-                isRangeSelectionStart={
-                  rangeSelectionIsOld === true &&
-                  row.left?.oldLineNo === rangeSelectionStart
-                }
-                isInRangePreview={
-                  rangeSelectionIsOld === true &&
-                  rangeSelectionStart != null &&
-                  hoveredLine != null &&
-                  row.left?.oldLineNo != null &&
-                  row.left.oldLineNo >=
-                    Math.min(rangeSelectionStart, hoveredLine) &&
-                  row.left.oldLineNo <=
-                    Math.max(rangeSelectionStart, hoveredLine)
-                }
-              />
-              <div className="w-px bg-gray-200 dark:bg-gray-700" />
-              <SplitSide
-                line={row.right}
-                isLeft={false}
-                comments={getLineComments(row.right?.newLineNo, false)}
-                onLineClick={onLineClick}
-                onContentClick={onContentClick}
-                onLineHover={onLineHover}
-                language={language}
-                diffSegments={row.rightDiffSegments}
-                isRangeSelectionStart={
-                  rangeSelectionIsOld === false &&
-                  row.right?.newLineNo === rangeSelectionStart
-                }
-                isInRangePreview={
-                  rangeSelectionIsOld === false &&
-                  rangeSelectionStart != null &&
-                  hoveredLine != null &&
-                  row.right?.newLineNo != null &&
-                  row.right.newLineNo >=
-                    Math.min(rangeSelectionStart, hoveredLine) &&
-                  row.right.newLineNo <=
-                    Math.max(rangeSelectionStart, hoveredLine)
-                }
-              />
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
     </div>
   );
@@ -324,7 +430,7 @@ function SplitSide({
   const isDark = document.documentElement.classList.contains("dark");
 
   if (!line) {
-    return <div className="w-1/2 bg-gray-50 dark:bg-gray-800/50" />;
+    return <div className="h-full bg-gray-50 dark:bg-gray-800/50" />;
   }
 
   const hasComments = comments.length > 0;
@@ -369,7 +475,7 @@ function SplitSide({
   return (
     <div
       className={clsx(
-        "w-1/2 flex font-mono text-sm leading-6 group",
+        "h-full flex font-mono text-sm leading-6 group",
         bgColor,
         hasComments && "ring-1 ring-inset ring-yellow-400 dark:ring-yellow-600",
       )}
@@ -411,7 +517,7 @@ function SplitSide({
         </span>
       </div>
 
-      {/* Non-clickable content - allows text selection */}
+      {/* Prefix indicator (+/-/space) */}
       <span
         className={clsx(
           "w-5 flex-shrink-0 text-center select-none",
@@ -425,8 +531,13 @@ function SplitSide({
             ? "-"
             : " "}
       </span>
+
+      {/* Code content */}
       <span
-        className={clsx("flex-1 whitespace-pre", hasComments && "cursor-pointer")}
+        className={clsx(
+          "flex-1 whitespace-pre",
+          hasComments && "cursor-pointer",
+        )}
         onClick={handleContentClick}
       >
         <HighlightedContent
@@ -436,6 +547,7 @@ function SplitSide({
           isDark={isDark}
         />
       </span>
+
       {hasComments && (
         <span className="w-5 flex-shrink-0 text-center text-yellow-600 dark:text-yellow-400 text-xs">
           {comments.length}
