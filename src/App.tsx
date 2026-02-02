@@ -12,26 +12,65 @@ import { CommitPanel } from "@/features/commit";
 import { Button } from "@/components/ui";
 
 export default function App() {
-  const { repoPath, status, setRepoPath, refreshStatus } = useGitStore();
+  const { repoPath, status, setRepoPath, refreshStatus, initDemoMode, isDemo } =
+    useGitStore();
   const {
     draft,
     exportToMarkdown,
     setRepoPath: setCommentRepoPath,
     getAllComments,
+    initDemoComments,
   } = useCommentStore();
   const {
     showCommentsPanel,
     toggleCommentsPanel,
     setShowCommentsPanel,
+    setTheme,
     sidebarWidth,
   } = useUiStore();
-  
-  // Sync comment store's repo path with git store
+
+  // Initialize demo mode on mount (only in development)
   useEffect(() => {
-    if (repoPath) {
+    // Early exit in production - this branch is removed by dead code elimination
+    if (!import.meta.env.DEV) return;
+
+    // Check for demo mode env var
+    const demoModeEnv = import.meta.env.VITE_DEMO_MODE as string | undefined;
+    if (!demoModeEnv || demoModeEnv === "empty") return;
+
+    // Dynamic import - entire demo module tree excluded from production bundle
+    import("@/lib/demo").then(
+      ({ getDemoMode, demoHasComments, demoUsesDarkTheme, buildDemoGitState, createDemoComments }) => {
+        const demoMode = getDemoMode();
+        if (!demoMode || demoMode === "empty") return;
+
+        // Initialize git store with demo data
+        const demoGitState = buildDemoGitState();
+        initDemoMode(demoGitState);
+
+        // Initialize comments if needed
+        if (demoHasComments(demoMode)) {
+          const demoComments = createDemoComments();
+          initDemoComments(demoGitState.status.path, demoComments);
+          setShowCommentsPanel(true);
+        }
+
+        // Set dark theme if needed
+        if (demoUsesDarkTheme(demoMode)) {
+          setTheme("dark");
+        }
+      },
+    );
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync comment store's repo path with git store (skip in demo mode)
+  useEffect(() => {
+    if (repoPath && !isDemo) {
       setCommentRepoPath(repoPath);
     }
-  }, [repoPath, setCommentRepoPath]);
+  }, [repoPath, setCommentRepoPath, isDemo]);
 
   // Listen for CLI-provided repo path from backend
   useEffect(() => {

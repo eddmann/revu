@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type { FileEntry, FileDiff, RepositoryStatus } from "@/types/git";
 
+interface DemoState {
+  status: RepositoryStatus;
+  diffs: Record<string, FileDiff>;
+}
+
 interface GitState {
   repoPath: string | null;
   status: RepositoryStatus | null;
@@ -9,6 +14,8 @@ interface GitState {
   currentDiff: FileDiff | null;
   isLoading: boolean;
   error: string | null;
+  isDemo: boolean;
+  _demoState: DemoState | null;
 
   setRepoPath: (path: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
@@ -26,6 +33,8 @@ interface GitState {
   discardFile: (filePath: string) => Promise<void>;
   discardAll: () => Promise<void>;
   clearError: () => void;
+  // Demo mode - accepts pre-built demo state
+  initDemoMode: (demoState: DemoState) => void;
 }
 
 export const useGitStore = create<GitState>()((set, get) => ({
@@ -35,8 +44,30 @@ export const useGitStore = create<GitState>()((set, get) => ({
   currentDiff: null,
   isLoading: false,
   error: null,
+  isDemo: false,
+  _demoState: null,
+
+  initDemoMode: (demoState: DemoState) => {
+    const { status, diffs } = demoState;
+    const firstFile = status.files.find((f) => !f.staged) || status.files[0];
+    const diff = firstFile ? diffs[firstFile.path] || null : null;
+
+    set({
+      isDemo: true,
+      _demoState: demoState,
+      repoPath: status.path,
+      status,
+      selectedFile: firstFile || null,
+      currentDiff: diff,
+      isLoading: false,
+      error: null,
+    });
+  },
 
   setRepoPath: async (path: string) => {
+    const { isDemo } = get();
+    if (isDemo) return; // Ignore in demo mode
+
     set({ repoPath: path, isLoading: true, error: null });
     try {
       const status = await invoke<RepositoryStatus>("get_status", {
@@ -49,8 +80,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   refreshStatus: async () => {
-    const { repoPath } = get();
-    if (!repoPath) return;
+    const { repoPath, isDemo } = get();
+    if (!repoPath || isDemo) return; // Ignore in demo mode
 
     set({ isLoading: true, error: null });
     try {
@@ -66,12 +97,19 @@ export const useGitStore = create<GitState>()((set, get) => ({
     fullContext = false,
     ignoreWhitespace = false,
   ) => {
-    const { repoPath } = get();
+    const { repoPath, isDemo, _demoState } = get();
     if (!repoPath) return;
 
     set({ selectedFile: file, currentDiff: null });
 
     if (file) {
+      // In demo mode, use pre-built diff data
+      if (isDemo && _demoState) {
+        const diff = _demoState.diffs[file.path] || null;
+        set({ currentDiff: diff });
+        return;
+      }
+
       try {
         const diff = await invoke<FileDiff>("get_file_diff", {
           repoPath,
@@ -88,8 +126,15 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   fetchDiff: async (fullContext: boolean, ignoreWhitespace: boolean) => {
-    const { repoPath, selectedFile } = get();
+    const { repoPath, selectedFile, isDemo, _demoState } = get();
     if (!repoPath || !selectedFile) return;
+
+    // In demo mode, just return the existing diff
+    if (isDemo && _demoState) {
+      const diff = _demoState.diffs[selectedFile.path] || null;
+      set({ currentDiff: diff });
+      return;
+    }
 
     try {
       const diff = await invoke<FileDiff>("get_file_diff", {
@@ -106,8 +151,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   stageFile: async (filePath: string) => {
-    const { repoPath, refreshStatus, selectFile, selectedFile } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, selectFile, selectedFile, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("stage_file", { repoPath, filePath });
@@ -125,8 +170,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   unstageFile: async (filePath: string) => {
-    const { repoPath, refreshStatus, selectFile, selectedFile } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, selectFile, selectedFile, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("unstage_file", { repoPath, filePath });
@@ -144,8 +189,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   stageAll: async () => {
-    const { repoPath, refreshStatus } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("stage_all", { repoPath });
@@ -156,8 +201,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   unstageAll: async () => {
-    const { repoPath, refreshStatus } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("unstage_all", { repoPath });
@@ -168,8 +213,9 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   commit: async (message: string) => {
-    const { repoPath, refreshStatus } = get();
+    const { repoPath, refreshStatus, isDemo } = get();
     if (!repoPath) throw new Error("No repository");
+    if (isDemo) return "demo-commit-oid"; // Mock in demo mode
 
     const oid = await invoke<string>("commit", { repoPath, message });
     await refreshStatus();
@@ -178,8 +224,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   discardFile: async (filePath: string) => {
-    const { repoPath, refreshStatus, selectedFile } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, selectedFile, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("discard_file", { repoPath, filePath });
@@ -193,8 +239,8 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   discardAll: async () => {
-    const { repoPath, refreshStatus } = get();
-    if (!repoPath) return;
+    const { repoPath, refreshStatus, isDemo } = get();
+    if (!repoPath || isDemo) return; // Disabled in demo mode
 
     try {
       await invoke("discard_all", { repoPath });

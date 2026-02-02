@@ -30,6 +30,8 @@ interface CommentState {
   setDraft: (draft: CommentDraft | null) => void;
   clearAllComments: () => void;
   exportToMarkdown: () => string;
+  // Demo mode - accepts pre-built comments
+  initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => void;
 }
 
 export const useCommentStore = create<CommentState>()(
@@ -147,6 +149,15 @@ export const useCommentStore = create<CommentState>()(
             [currentRepoPath]: {},
           },
         }));
+      },
+
+      initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => {
+        set({
+          currentRepoPath: repoPath,
+          comments: {
+            [repoPath]: comments,
+          },
+        });
       },
 
       exportToMarkdown: () => {
