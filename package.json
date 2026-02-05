@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3",
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "clsx": "^2",
     "prism-react-renderer": "^2",
@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9",
-    "@tauri-apps/cli": "^2",
+    "@tauri-apps/cli": "^2.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@tailwindcss/vite": "^4",

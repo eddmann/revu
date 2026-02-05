@@ -8,7 +8,7 @@ help: ## Display this help message
 ##@ Development
 
 install: ## Install all dependencies
-	bun install
+	bun install --frozen-lockfile
 
 dev: ## Start development server
 	bun tauri dev
