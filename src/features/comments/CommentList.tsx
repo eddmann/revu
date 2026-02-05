@@ -183,8 +183,8 @@ function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            title={comment.category}
           >
+            <title>{comment.category}</title>
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
