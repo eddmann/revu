@@ -20,16 +20,18 @@ export function createDemoStatus(): RepositoryStatus {
       { path: 'src/auth/AuthProvider.tsx', status: 'modified', staged: true },
       { path: 'src/auth/useAuth.ts', status: 'modified', staged: true },
       { path: 'src/components/LoginForm.tsx', status: 'added', staged: true },
+      { path: 'src/hooks/useSession.ts', status: 'added', staged: true },
       { path: 'src/api/auth.ts', status: 'modified', staged: false },
       { path: 'src/types/user.ts', status: 'added', staged: false },
+      { path: 'src/middleware/withAuth.ts', status: 'added', staged: false },
       { path: 'README.md', status: 'modified', staged: false },
     ],
-    stagedCount: 3,
-    unstagedCount: 3,
+    stagedCount: 4,
+    unstagedCount: 4,
   };
 }
 
-// Sample diff for AuthProvider.tsx
+// Sample diff for the selected file
 export function createDemoFileDiff(file: FileEntry): FileDiff {
   const diffs: Record<string, FileDiff> = {
     'src/auth/AuthProvider.tsx': {
@@ -216,81 +218,148 @@ export function createDemoFileDiff(file: FileEntry): FileDiff {
       status: 'modified',
       hunks: [
         {
-          header: '@@ -8,6 +8,22 @@',
-          oldStart: 8,
-          oldLines: 6,
-          newStart: 8,
-          newLines: 22,
+          header: '@@ -1,4 +1,7 @@',
+          oldStart: 1,
+          oldLines: 4,
+          newStart: 1,
+          newLines: 7,
           lines: [
             {
               lineType: 'context',
-              content: 'const API_URL = import.meta.env.VITE_API_URL;',
-              oldLineNo: 8,
-              newLineNo: 8,
-            },
-            { lineType: 'context', content: '', oldLineNo: 9, newLineNo: 9 },
-            {
-              lineType: 'context',
-              content: 'export const authApi = {',
-              oldLineNo: 10,
-              newLineNo: 10,
+              content: "import type { LoginResponse } from '../types/user';",
+              oldLineNo: 1,
+              newLineNo: 1,
             },
             {
               lineType: 'addition',
-              content: '  async login(email: string, password: string) {',
-              newLineNo: 11,
+              content: "import type { TokenPair, User } from '../types/user';",
+              newLineNo: 2,
+            },
+            { lineType: 'context', content: '', oldLineNo: 2, newLineNo: 3 },
+            {
+              lineType: 'deletion',
+              content: 'const API_URL = process.env.API_URL;',
+              oldLineNo: 3,
+            },
+            {
+              lineType: 'addition',
+              content: 'const API_URL = import.meta.env.VITE_API_URL;',
+              newLineNo: 4,
+            },
+            {
+              lineType: 'addition',
+              content: "const TOKEN_KEY = 'auth_token';",
+              newLineNo: 5,
+            },
+            {
+              lineType: 'addition',
+              content: "const REFRESH_KEY = 'refresh_token';",
+              newLineNo: 6,
+            },
+            { lineType: 'context', content: '', oldLineNo: 4, newLineNo: 7 },
+          ],
+        },
+        {
+          header: '@@ -5,3 +8,20 @@',
+          oldStart: 5,
+          oldLines: 3,
+          newStart: 8,
+          newLines: 20,
+          lines: [
+            {
+              lineType: 'context',
+              content: 'export const authApi = {',
+              oldLineNo: 5,
+              newLineNo: 8,
+            },
+            {
+              lineType: 'deletion',
+              content: '  // TODO: implement auth methods',
+              oldLineNo: 6,
+            },
+            {
+              lineType: 'addition',
+              content:
+                '  async login(email: string, password: string): Promise<LoginResponse> {',
+              newLineNo: 9,
             },
             {
               lineType: 'addition',
               content:
                 '    const response = await fetch(`${API_URL}/auth/login`, {',
-              newLineNo: 12,
+              newLineNo: 10,
             },
             {
               lineType: 'addition',
               content: "      method: 'POST',",
-              newLineNo: 13,
+              newLineNo: 11,
             },
             {
               lineType: 'addition',
               content: "      headers: { 'Content-Type': 'application/json' },",
-              newLineNo: 14,
+              newLineNo: 12,
             },
             {
               lineType: 'addition',
               content: '      body: JSON.stringify({ email, password }),',
-              newLineNo: 15,
+              newLineNo: 13,
             },
-            { lineType: 'addition', content: '    });', newLineNo: 16 },
+            { lineType: 'addition', content: '    });', newLineNo: 14 },
             {
               lineType: 'addition',
               content: "    if (!response.ok) throw new Error('Login failed');",
+              newLineNo: 15,
+            },
+            {
+              lineType: 'addition',
+              content: '    const data = await response.json();',
+              newLineNo: 16,
+            },
+            {
+              lineType: 'addition',
+              content: '    localStorage.setItem(TOKEN_KEY, data.tokens.access);',
               newLineNo: 17,
             },
             {
               lineType: 'addition',
-              content: '    return response.json();',
+              content:
+                '    localStorage.setItem(REFRESH_KEY, data.tokens.refresh);',
               newLineNo: 18,
             },
-            { lineType: 'addition', content: '  },', newLineNo: 19 },
-            { lineType: 'addition', content: '', newLineNo: 20 },
             {
               lineType: 'addition',
-              content: '  async logout() {',
-              newLineNo: 21,
+              content: '    return data;',
+              newLineNo: 19,
+            },
+            { lineType: 'addition', content: '  },', newLineNo: 20 },
+            { lineType: 'addition', content: '', newLineNo: 21 },
+            {
+              lineType: 'addition',
+              content: '  async logout(): Promise<void> {',
+              newLineNo: 22,
             },
             {
               lineType: 'addition',
               content:
                 "    await fetch(`${API_URL}/auth/logout`, { method: 'POST' });",
-              newLineNo: 22,
+              newLineNo: 23,
             },
-            { lineType: 'addition', content: '  },', newLineNo: 23 },
+            {
+              lineType: 'addition',
+              content: '    localStorage.removeItem(TOKEN_KEY);',
+              newLineNo: 24,
+            },
+            {
+              lineType: 'addition',
+              content: '    localStorage.removeItem(REFRESH_KEY);',
+              newLineNo: 25,
+            },
+            { lineType: 'addition', content: '  },', newLineNo: 26 },
             {
               lineType: 'context',
               content: '};',
-              oldLineNo: 11,
-              newLineNo: 24,
+              oldLineNo: 7,
+              newLineNo: 27,
             },
           ],
         },
@@ -415,12 +484,25 @@ export function createDemoComments(): Record<string, Comment[]> {
       {
         id: 'demo-2',
         filePath: 'src/api/auth.ts',
-        startLine: 17,
-        endLine: 17,
+        startLine: 15,
+        endLine: 15,
         content:
           'Should we include more specific error messages based on the response status code?',
         category: 'question',
         codeSnippet: "    if (!response.ok) throw new Error('Login failed');",
+        createdAt: now - 120000,
+        isOld: false,
+      },
+      {
+        id: 'demo-3',
+        filePath: 'src/api/auth.ts',
+        startLine: 17,
+        endLine: 18,
+        content:
+          'Consider using httpOnly cookies instead of localStorage for tokens — localStorage is vulnerable to XSS attacks.',
+        category: 'suggestion',
+        codeSnippet:
+          '    localStorage.setItem(TOKEN_KEY, data.tokens.access);\n    localStorage.setItem(REFRESH_KEY, data.tokens.refresh);',
         createdAt: now - 50000,
         isOld: false,
       },
