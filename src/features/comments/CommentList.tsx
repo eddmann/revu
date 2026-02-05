@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { clsx } from "clsx";
 import { invoke } from "@tauri-apps/api/core";
 import { useCommentStore } from "@/stores/commentStore";
@@ -7,18 +7,33 @@ import { useUiStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui";
 import { HighlightedContent } from "@/features/diff/HighlightedContent";
 import { getLanguageFromPath } from "@/lib/syntax";
+import { stripIndent } from "@/lib/stripIndent";
 import type { Comment, CommentCategory } from "@/types/comment";
 
-const categoryColors: Record<CommentCategory, string> = {
-  suggestion:
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300",
-  issue: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300",
-  question:
-    "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300",
-  nitpick:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300",
-  praise:
-    "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
+const categoryStyles: Record<
+  CommentCategory,
+  { color: string; icon: string }
+> = {
+  suggestion: {
+    color: "text-blue-500 dark:text-blue-400",
+    icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z", // lightbulb
+  },
+  issue: {
+    color: "text-red-500 dark:text-red-400",
+    icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", // warning triangle
+  },
+  question: {
+    color: "text-purple-500 dark:text-purple-400",
+    icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01", // question mark
+  },
+  nitpick: {
+    color: "text-yellow-500 dark:text-yellow-400",
+    icon: "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z", // pencil
+  },
+  praise: {
+    color: "text-green-500 dark:text-green-400",
+    icon: "M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", // smiley
+  },
 };
 
 export function CommentList() {
@@ -110,7 +125,7 @@ export function CommentList() {
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+      <div className="flex-1 overflow-y-auto p-2 space-y-3">
         {comments.map((comment) => (
           <CommentCard
             key={comment.id}
@@ -146,45 +161,54 @@ interface CommentCardProps {
 function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps) {
   const lineRef =
     comment.startLine === comment.endLine
-      ? `Line ${comment.startLine}`
-      : `Lines ${comment.startLine}-${comment.endLine}`;
+      ? `:${comment.startLine}`
+      : `:${comment.startLine}-${comment.endLine}`;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) setIsOverflowing(el.scrollHeight > el.clientHeight);
+  }, [comment.content]);
 
   return (
     <div
       onClick={onEdit}
-      className="bg-gray-50 dark:bg-gray-800 rounded-md p-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+      className="group bg-gray-50 dark:bg-gray-800 rounded-lg ring-1 ring-gray-200/80 dark:ring-gray-700/80 p-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-              {comment.filePath.split("/").pop()}
-            </span>
-            <span className="text-gray-500 dark:text-gray-400 text-xs">
-              {lineRef}
-            </span>
-            <span
-              className={clsx(
-                "w-5 h-5 rounded flex items-center justify-center text-xs font-bold",
-                comment.isOld
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                  : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-              )}
-            >
-              {comment.isOld ? "−" : "+"}
-            </span>
-            <span
-              className={clsx(
-                "px-1.5 py-0.5 rounded text-xs font-medium",
-                categoryColors[comment.category],
-              )}
-            >
-              {comment.category}
-            </span>
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 text-xs truncate mt-0.5">
-            {comment.filePath}
-          </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <svg
+            className={clsx("w-4 h-4 shrink-0", categoryStyles[comment.category].color)}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            title={comment.category}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d={categoryStyles[comment.category].icon}
+            />
+          </svg>
+          <span
+            className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate"
+            title={comment.filePath}
+          >
+            {comment.filePath.split("/").pop()}
+            <span className="text-gray-400 dark:text-gray-500 font-normal ml-0.5">{lineRef}</span>
+          </span>
+          <span
+            className={clsx(
+              "w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold shrink-0",
+              comment.isOld
+                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+            )}
+          >
+            {comment.isOld ? "−" : "+"}
+          </span>
         </div>
         <div className="flex-shrink-0 flex gap-1">
           <button
@@ -234,22 +258,42 @@ function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps
         </div>
       </div>
 
-      {comment.codeSnippet && (
-        <div className="mt-2 bg-gray-100 dark:bg-gray-900 rounded px-2 py-1 font-mono text-xs overflow-x-auto">
-          <code className="text-gray-700 dark:text-gray-300 whitespace-pre">
-            <HighlightedContent
-              content={
-                comment.codeSnippet.slice(0, 100) +
-                (comment.codeSnippet.length > 100 ? "..." : "")
-              }
-              language={getLanguageFromPath(comment.filePath)}
-              isDark={document.documentElement.classList.contains("dark")}
-            />
-          </code>
-        </div>
-      )}
+      {/* Divider + content */}
+      <div className="mt-2 pt-2 border-t border-gray-200/60 dark:border-gray-700/60">
+        {comment.codeSnippet && (
+          <div className="relative bg-gray-100 dark:bg-gray-900 rounded px-2 py-1.5 font-mono text-xs overflow-hidden">
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-r from-transparent to-gray-100 dark:to-gray-900" />
+            <code className="text-gray-700 dark:text-gray-300 whitespace-pre">
+              <HighlightedContent
+                content={(() => {
+                  const trimmed = stripIndent(comment.codeSnippet);
+                  return (
+                    trimmed.slice(0, 100) +
+                    (trimmed.length > 100 ? "..." : "")
+                  );
+                })()}
+                language={getLanguageFromPath(comment.filePath)}
+                isDark={document.documentElement.classList.contains("dark")}
+              />
+            </code>
+          </div>
+        )}
 
-      <p className="mt-2 text-gray-700 dark:text-gray-300">{comment.content}</p>
+        <div
+          ref={bodyRef}
+          className={clsx(
+            "relative max-h-[6em] overflow-hidden",
+            comment.codeSnippet && "mt-2.5",
+          )}
+        >
+          <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+            {comment.content}
+          </p>
+          {isOverflowing && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-gray-50 group-hover:from-gray-100 dark:from-gray-800 dark:group-hover:from-gray-700 transition-colors" />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

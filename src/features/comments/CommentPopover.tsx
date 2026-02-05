@@ -4,6 +4,7 @@ import { useCommentStore } from "@/stores/commentStore";
 import { Button } from "@/components/ui";
 import { HighlightedContent } from "@/features/diff/HighlightedContent";
 import { getLanguageFromPath } from "@/lib/syntax";
+import { stripIndent } from "@/lib/stripIndent";
 import type { CommentCategory } from "@/types/comment";
 
 const categories: { value: CommentCategory; label: string; color: string }[] = [
@@ -74,8 +75,8 @@ export function CommentPopover() {
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {draft.filePath} - Line {draft.startLine}
-              {draft.endLine !== draft.startLine && ` to ${draft.endLine}`}
+              {draft.filePath}:{draft.startLine}
+              {draft.endLine !== draft.startLine && `-${draft.endLine}`}
             </p>
             <span
               className={clsx(
@@ -92,10 +93,11 @@ export function CommentPopover() {
 
         <div className="p-4 space-y-4">
           {draft.codeSnippet && (
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-md p-2 font-mono text-sm overflow-x-auto">
+            <div className="relative bg-gray-50 dark:bg-gray-900 rounded-md p-2 font-mono text-sm overflow-hidden">
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-r from-transparent to-gray-50 dark:to-gray-900" />
               <code className="text-gray-800 dark:text-gray-200 whitespace-pre">
                 <HighlightedContent
-                  content={draft.codeSnippet}
+                  content={stripIndent(draft.codeSnippet)}
                   language={getLanguageFromPath(draft.filePath)}
                   isDark={document.documentElement.classList.contains("dark")}
                 />

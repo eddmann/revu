@@ -47,8 +47,13 @@ export function HighlightedContent({
     <Highlight theme={theme} code={content} language={language}>
       {({ tokens, getTokenProps }) => (
         <span>
-          {(tokens[0] || []).map((token, i) => (
-            <span key={i} {...getTokenProps({ token })} />
+          {tokens.map((line, lineIdx) => (
+            <span key={lineIdx}>
+              {lineIdx > 0 && "\n"}
+              {line.map((token, i) => (
+                <span key={i} {...getTokenProps({ token })} />
+              ))}
+            </span>
           ))}
         </span>
       )}

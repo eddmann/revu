@@ -77,7 +77,7 @@ export function DiffViewer() {
             filePath: currentDiff.path,
             startLine,
             endLine,
-            codeSnippet: snippetLines.join(""),
+            codeSnippet: snippetLines.join("\n"),
             isOld: rangeStart.isOld,
           });
           setRangeStart(null);
