@@ -21,12 +21,10 @@ Inspired by [Conductor](https://www.conductor.build/)'s working directory review
 ## Features
 
 - **Unified and split diff views** - syntax highlighting with word-level change detection
-- **Inline comments** - click any line to add categorised feedback
+- **Inline comments** - add categorised feedback to lines or selections
 - **Stage/unstage files** - manage staging and create commits directly
-- **Send to Agent** - exports structured review to `.revu` for agent consumption
-- **CLI integration** - open with a repo path: `open -a revu --args /path/to/repo`
-- **Light/dark theme** - with system preference detection
-- **Keyboard shortcuts** - Cmd+R refresh, Cmd+Shift+C copy review, Cmd+Enter commit
+- **Export for Agent** - exports review and copies the file path to clipboard for agent use
+- **CLI integration** - open with `revu /path/to/repo`
 
 ## Comment Categories
 
@@ -77,31 +75,16 @@ revu /path/to/repo
 
 ### With Coding Agents
 
-revu includes an installable skill for agent integration.
+1. Run `! revu .` in your agent to open revu with the current repo
+2. Review changes and add comments by clicking on lines
+3. Click "Export for Agent" when done — the file path is copied to your clipboard
+4. Reference the exported review in your agent with `@{paste path}`
 
-**Install the skill:**
-
-```bash
-# For Claude Code
-mkdir -p ~/.claude/skills/revu
-cp SKILL.md ~/.claude/skills/revu/
-
-# For other agents, copy SKILL.md to your agent's skills directory
-```
-
-**Workflow:**
-
-1. Run `/revu` in your agent
-2. revu opens with your repo
-3. Review changes and add comments by clicking on lines
-4. Click "Send to Agent" when done
-5. Run `/revu` again to retrieve the review
-
-The review is saved to `.revu` in your project root.
+The review is saved to `~/.revu/{repo-name}-{timestamp}.md`.
 
 ## Review Format
 
-When you click "Send to Agent", revu writes a structured XML file that agents can parse:
+When you click "Export for Agent", revu writes a structured XML file that agents can parse:
 
 ```xml
 <revu-review>

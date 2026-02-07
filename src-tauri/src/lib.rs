@@ -14,6 +14,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             // If a repo path was provided via CLI, emit it to the frontend
@@ -42,7 +43,7 @@ pub fn run() {
             commit,
             discard_file,
             discard_all,
-            write_review_output,
+            export_review,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

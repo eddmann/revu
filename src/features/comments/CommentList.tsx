@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { clsx } from "clsx";
 import { invoke } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useCommentStore } from "@/stores/commentStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -47,9 +48,9 @@ export function CommentList() {
   const { repoPath, status, selectFile } = useGitStore();
   const { setScrollToLine } = useUiStore();
   const comments = getAllComments();
-  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent">(
-    "idle",
-  );
+  const [exportStatus, setExportStatus] = useState<
+    "idle" | "exporting" | "exported"
+  >("idle");
 
   const handleNavigate = (comment: Comment) => {
     // Find the file in status and select it
@@ -68,18 +69,22 @@ export function CommentList() {
     }
   };
 
-  const handleSendToAgent = async () => {
+  const handleExportForAgent = async () => {
     const markdown = exportToMarkdown();
     if (!markdown || !repoPath) return;
 
-    setSendStatus("sending");
+    setExportStatus("exporting");
     try {
-      await invoke("write_review_output", { repoPath, markdown });
-      setSendStatus("sent");
-      setTimeout(() => setSendStatus("idle"), 2000);
+      const outputPath = await invoke<string>("export_review", {
+        repoPath,
+        markdown,
+      });
+      await writeText(outputPath);
+      setExportStatus("exported");
+      setTimeout(() => setExportStatus("idle"), 2000);
     } catch (err) {
-      console.error("Failed to write review:", err);
-      setSendStatus("idle");
+      console.error("Failed to export review:", err);
+      setExportStatus("idle");
     }
   };
 
@@ -113,15 +118,15 @@ export function CommentList() {
         <Button
           variant="primary"
           size="sm"
-          onClick={handleSendToAgent}
-          disabled={sendStatus !== "idle"}
+          onClick={handleExportForAgent}
+          disabled={exportStatus !== "idle"}
           className="w-full"
         >
-          {sendStatus === "sending"
-            ? "Saving..."
-            : sendStatus === "sent"
-              ? "Saved!"
-              : "Send to Agent"}
+          {exportStatus === "exporting"
+            ? "Exporting..."
+            : exportStatus === "exported"
+              ? "Exported! Path copied"
+              : "Export for Agent"}
         </Button>
       </div>
 

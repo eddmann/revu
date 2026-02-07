@@ -16,19 +16,20 @@ make dev
 
 ## Common Commands
 
-| Task | Command |
-|------|---------|
-| Install deps | `make install` |
-| Dev server | `make dev` |
-| Build | `make build` |
+| Task           | Command                           |
+| -------------- | --------------------------------- |
+| Install deps   | `make install`                    |
+| Dev server     | `make dev`                        |
+| Build          | `make build`                      |
 | Build (target) | `make build/aarch64-apple-darwin` |
-| Format | `make fmt` |
-| Lint | `make lint` |
-| CI checks | `make can-release` |
+| Format         | `make fmt`                        |
+| Lint           | `make lint`                       |
+| CI checks      | `make can-release`                |
 
 ## Code Conventions
 
 **Directory structure:**
+
 - `src/` - React frontend (TypeScript)
 - `src/components/ui/` - Reusable UI primitives
 - `src/features/` - Feature modules (comments, diff, files, theme)
@@ -49,10 +50,12 @@ make dev
 No unit test framework. CI validates linting only.
 
 **CI workflow:** Runs on push/PR to `main`
+
 - Frontend: `bun run lint` (ESLint)
 - Backend: `cargo fmt --check && cargo clippy -- -D warnings`
 
 **Run all checks locally:**
+
 ```bash
 make can-release
 ```
@@ -60,6 +63,7 @@ make can-release
 ## PR & Workflow Rules
 
 **Commit format:** Conventional commits
+
 - `feat:` new features
 - `fix:` bug fixes
 - `docs:` documentation
@@ -73,9 +77,9 @@ make can-release
 ## Security & Gotchas
 
 **Never commit:**
+
 - `.env`, `.env.local`
 - `node_modules/`, `dist/`, `src-tauri/target/`
-- `.revu/` (review output)
 
 **No env vars required** - all config is in code or Tauri config
 
