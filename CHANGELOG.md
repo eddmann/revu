@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-07
+
+### Changed
+
+- Review export now saves to `~/.revu/{repo-name}-{timestamp}.md` instead of `.revu` in the project root
+- Exported file path is copied to clipboard for easy pasting into agents
+- Renamed "Send to Agent" to "Export for Agent" throughout the UI
+
+### Removed
+
+- SKILL.md agent skill file — replaced by simpler clipboard-based workflow
+
 ## [0.3.1] - 2026-02-05
 
 ### Changed
@@ -56,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Light/dark theme with system preference detection
 - Keyboard shortcuts: Cmd+R (refresh), Cmd+Shift+C (copy), Cmd+Enter (commit)
 
+[0.4.0]: https://github.com/eddmann/revu/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/eddmann/revu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/eddmann/revu/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eddmann/revu/compare/v0.1.3...v0.2.0
