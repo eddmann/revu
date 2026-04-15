@@ -64,6 +64,16 @@ pub struct FileDiff {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CommitInfo {
+    pub oid: String,
+    pub message: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepositoryStatus {
     pub path: String,
     pub branch: Option<String>,

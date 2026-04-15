@@ -9,15 +9,26 @@ import { FileList } from "@/features/files";
 import { DiffViewer } from "@/features/diff";
 import { CommentPopover, CommentList } from "@/features/comments";
 import { CommitPanel } from "@/features/commit";
+import { CommitList, CommitFileList } from "@/features/commits";
 import { Button } from "@/components/ui";
 
 export default function App() {
-  const { repoPath, status, setRepoPath, refreshStatus, initDemoMode, isDemo } =
-    useGitStore();
+  const {
+    repoPath,
+    status,
+    setRepoPath,
+    refreshStatus,
+    initDemoMode,
+    isDemo,
+    reviewMode,
+    setReviewMode,
+    selectedCommit,
+  } = useGitStore();
   const {
     draft,
     exportToMarkdown,
     setRepoPath: setCommentRepoPath,
+    setReviewContext,
     getAllComments,
     initDemoComments,
   } = useCommentStore();
@@ -72,6 +83,15 @@ export default function App() {
     }
   }, [repoPath, setCommentRepoPath, isDemo]);
 
+  // Sync comment store's review context when mode or selected commit changes
+  useEffect(() => {
+    if (reviewMode === "commits" && selectedCommit) {
+      setReviewContext(selectedCommit.oid);
+    } else {
+      setReviewContext("working");
+    }
+  }, [reviewMode, selectedCommit, setReviewContext]);
+
   // Listen for CLI-provided repo path from backend
   useEffect(() => {
     const unlisten = listen<string>("open-repo", (event) => {
@@ -88,7 +108,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && e.shiftKey) {
         e.preventDefault();
-        const markdown = exportToMarkdown();
+        const markdown = exportToMarkdown(selectedCommit?.oid);
         if (markdown) {
           navigator.clipboard.writeText(markdown);
         }
@@ -102,7 +122,7 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [exportToMarkdown, refreshStatus]);
+  }, [exportToMarkdown, refreshStatus, selectedCommit]);
 
   // Auto-open comments panel when first comment is added
   const comments = getAllComments();
@@ -229,10 +249,42 @@ export default function App() {
             className="flex-shrink-0 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
             style={{ width: sidebarWidth }}
           >
+            {/* Mode toggle */}
+            {repoPath && (
+              <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setReviewMode("changes")}
+                  className={`flex-1 py-1.5 text-xs font-medium cursor-default transition-colors ${
+                    reviewMode === "changes"
+                      ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Changes
+                </button>
+                <button
+                  onClick={() => setReviewMode("commits")}
+                  className={`flex-1 py-1.5 text-xs font-medium cursor-default transition-colors border-l border-gray-200 dark:border-gray-700 ${
+                    reviewMode === "commits"
+                      ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Commits
+                </button>
+              </div>
+            )}
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <FileList />
+              {reviewMode === "commits" ? (
+                <>
+                  <CommitList />
+                  <CommitFileList />
+                </>
+              ) : (
+                <FileList />
+              )}
             </div>
-            <CommitPanel />
+            {reviewMode === "changes" && <CommitPanel />}
           </aside>
 
           {/* Diff viewer */}

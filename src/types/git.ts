@@ -1,3 +1,13 @@
+export type ReviewMode = "changes" | "commits";
+
+export interface CommitInfo {
+  oid: string;
+  message: string;
+  authorName: string;
+  authorEmail: string;
+  timestamp: number;
+}
+
 export type FileStatus =
   | "modified"
   | "added"
