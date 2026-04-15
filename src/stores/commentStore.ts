@@ -5,10 +5,12 @@ import { getLanguageFromPath } from "@/lib/syntax";
 
 interface CommentState {
   currentRepoPath: string | null;
-  comments: Record<string, Record<string, Comment[]>>; // repoPath -> filePath -> comments
+  reviewContext: string; // "working" for changes mode, commit oid for commit mode
+  comments: Record<string, Record<string, Record<string, Comment[]>>>; // repoPath -> reviewContext -> filePath -> comments
   draft: CommentDraft | null;
 
   setRepoPath: (repoPath: string) => void;
+  setReviewContext: (context: string) => void;
   addComment: (
     filePath: string,
     startLine: number,
@@ -29,7 +31,7 @@ interface CommentState {
   getAllComments: () => Comment[];
   setDraft: (draft: CommentDraft | null) => void;
   clearAllComments: () => void;
-  exportToMarkdown: () => string;
+  exportToMarkdown: (commitOid?: string) => string;
   // Demo mode - accepts pre-built comments
   initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => void;
 }
@@ -38,10 +40,13 @@ export const useCommentStore = create<CommentState>()(
   persist(
     (set, get) => ({
       currentRepoPath: null,
+      reviewContext: "working",
       comments: {},
       draft: null,
 
       setRepoPath: (repoPath) => set({ currentRepoPath: repoPath }),
+
+      setReviewContext: (context) => set({ reviewContext: context }),
 
       addComment: (
         filePath,
@@ -52,7 +57,7 @@ export const useCommentStore = create<CommentState>()(
         codeSnippet,
         isOld,
       ) => {
-        const { currentRepoPath } = get();
+        const { currentRepoPath, reviewContext } = get();
         if (!currentRepoPath) return;
 
         const comment: Comment = {
@@ -72,10 +77,13 @@ export const useCommentStore = create<CommentState>()(
             ...state.comments,
             [currentRepoPath]: {
               ...(state.comments[currentRepoPath] || {}),
-              [filePath]: [
-                ...(state.comments[currentRepoPath]?.[filePath] || []),
-                comment,
-              ],
+              [reviewContext]: {
+                ...(state.comments[currentRepoPath]?.[reviewContext] || {}),
+                [filePath]: [
+                  ...(state.comments[currentRepoPath]?.[reviewContext]?.[filePath] || []),
+                  comment,
+                ],
+              },
             },
           },
           draft: null,
@@ -83,7 +91,7 @@ export const useCommentStore = create<CommentState>()(
       },
 
       removeComment: (filePath, commentId) => {
-        const { currentRepoPath } = get();
+        const { currentRepoPath, reviewContext } = get();
         if (!currentRepoPath) return;
 
         set((state) => ({
@@ -91,16 +99,19 @@ export const useCommentStore = create<CommentState>()(
             ...state.comments,
             [currentRepoPath]: {
               ...(state.comments[currentRepoPath] || {}),
-              [filePath]: (
-                state.comments[currentRepoPath]?.[filePath] || []
-              ).filter((c) => c.id !== commentId),
+              [reviewContext]: {
+                ...(state.comments[currentRepoPath]?.[reviewContext] || {}),
+                [filePath]: (
+                  state.comments[currentRepoPath]?.[reviewContext]?.[filePath] || []
+                ).filter((c) => c.id !== commentId),
+              },
             },
           },
         }));
       },
 
       updateComment: (filePath, commentId, content, category) => {
-        const { currentRepoPath } = get();
+        const { currentRepoPath, reviewContext } = get();
         if (!currentRepoPath) return;
 
         set((state) => ({
@@ -108,27 +119,30 @@ export const useCommentStore = create<CommentState>()(
             ...state.comments,
             [currentRepoPath]: {
               ...(state.comments[currentRepoPath] || {}),
-              [filePath]: (
-                state.comments[currentRepoPath]?.[filePath] || []
-              ).map((c) =>
-                c.id === commentId ? { ...c, content, category } : c,
-              ),
+              [reviewContext]: {
+                ...(state.comments[currentRepoPath]?.[reviewContext] || {}),
+                [filePath]: (
+                  state.comments[currentRepoPath]?.[reviewContext]?.[filePath] || []
+                ).map((c) =>
+                  c.id === commentId ? { ...c, content, category } : c,
+                ),
+              },
             },
           },
         }));
       },
 
       getFileComments: (filePath) => {
-        const { currentRepoPath, comments } = get();
+        const { currentRepoPath, reviewContext, comments } = get();
         if (!currentRepoPath) return [];
-        return comments[currentRepoPath]?.[filePath] || [];
+        return comments[currentRepoPath]?.[reviewContext]?.[filePath] || [];
       },
 
       getAllComments: () => {
-        const { currentRepoPath, comments } = get();
+        const { currentRepoPath, reviewContext, comments } = get();
         if (!currentRepoPath) return [];
-        const repoComments = comments[currentRepoPath] || {};
-        return Object.values(repoComments)
+        const contextComments = comments[currentRepoPath]?.[reviewContext] || {};
+        return Object.values(contextComments)
           .flat()
           .sort((a, b) => {
             if (a.filePath !== b.filePath)
@@ -140,13 +154,16 @@ export const useCommentStore = create<CommentState>()(
       setDraft: (draft) => set({ draft }),
 
       clearAllComments: () => {
-        const { currentRepoPath } = get();
+        const { currentRepoPath, reviewContext } = get();
         if (!currentRepoPath) return;
 
         set((state) => ({
           comments: {
             ...state.comments,
-            [currentRepoPath]: {},
+            [currentRepoPath]: {
+              ...(state.comments[currentRepoPath] || {}),
+              [reviewContext]: {},
+            },
           },
         }));
       },
@@ -154,13 +171,14 @@ export const useCommentStore = create<CommentState>()(
       initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => {
         set({
           currentRepoPath: repoPath,
+          reviewContext: "working",
           comments: {
-            [repoPath]: comments,
+            [repoPath]: { working: comments },
           },
         });
       },
 
-      exportToMarkdown: () => {
+      exportToMarkdown: (commitOid?: string) => {
         const allComments = get().getAllComments();
         if (allComments.length === 0) return "";
 
@@ -215,7 +233,7 @@ Questions: ${byCategory.question.length}
 <line>${lineRef}</line>
 <side>${side}</side>
 <category>${comment.category}</category>
-${
+${commitOid ? `<commit>${commitOid}</commit>\n` : ""}${
   comment.codeSnippet
     ? `<code language="${lang}">
 ${comment.codeSnippet}</code>
@@ -232,7 +250,7 @@ ${comment.codeSnippet}</code>
       },
     }),
     {
-      name: "revu-comments",
+      name: "revu-comments-v2",
       partialize: (state) => ({ comments: state.comments }),
     },
   ),

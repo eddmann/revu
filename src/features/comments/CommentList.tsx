@@ -45,7 +45,7 @@ export function CommentList() {
     clearAllComments,
     setDraft,
   } = useCommentStore();
-  const { repoPath, status, selectFile } = useGitStore();
+  const { repoPath, status, selectFile, selectedCommit } = useGitStore();
   const { setScrollToLine } = useUiStore();
   const comments = getAllComments();
   const [exportStatus, setExportStatus] = useState<
@@ -63,14 +63,14 @@ export function CommentList() {
   };
 
   const handleCopyMarkdown = async () => {
-    const markdown = exportToMarkdown();
+    const markdown = exportToMarkdown(selectedCommit?.oid);
     if (markdown) {
       await navigator.clipboard.writeText(markdown);
     }
   };
 
   const handleExportForAgent = async () => {
-    const markdown = exportToMarkdown();
+    const markdown = exportToMarkdown(selectedCommit?.oid);
     if (!markdown || !repoPath) return;
 
     setExportStatus("exporting");

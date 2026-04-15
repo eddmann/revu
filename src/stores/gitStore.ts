@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { FileEntry, FileDiff, RepositoryStatus } from "@/types/git";
+import type { CommitInfo, FileEntry, FileDiff, RepositoryStatus, ReviewMode } from "@/types/git";
 
 interface DemoState {
   status: RepositoryStatus;
@@ -16,6 +16,12 @@ interface GitState {
   error: string | null;
   isDemo: boolean;
   _demoState: DemoState | null;
+  reviewMode: ReviewMode;
+  commits: CommitInfo[];
+  commitsPaginated: boolean; // true when showing paginated log (not branch-scoped)
+  commitsPage: number; // current page in paginated mode
+  selectedCommit: CommitInfo | null;
+  commitFiles: FileEntry[];
 
   setRepoPath: (path: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
@@ -33,6 +39,11 @@ interface GitState {
   discardFile: (filePath: string) => Promise<void>;
   discardAll: () => Promise<void>;
   clearError: () => void;
+  setReviewMode: (mode: ReviewMode) => Promise<void>;
+  fetchCommitLog: () => Promise<void>;
+  loadMoreCommits: () => Promise<void>;
+  selectCommit: (commit: CommitInfo | null) => Promise<void>;
+  _fetchDiff: (file: FileEntry, fullContext: boolean, ignoreWhitespace: boolean) => Promise<void>;
   // Demo mode - accepts pre-built demo state
   initDemoMode: (demoState: DemoState) => void;
 }
@@ -46,6 +57,12 @@ export const useGitStore = create<GitState>()((set, get) => ({
   error: null,
   isDemo: false,
   _demoState: null,
+  reviewMode: "changes",
+  commits: [],
+  commitsPaginated: false,
+  commitsPage: 0,
+  selectedCommit: null,
+  commitFiles: [],
 
   initDemoMode: (demoState: DemoState) => {
     const { status, diffs } = demoState;
@@ -103,14 +120,41 @@ export const useGitStore = create<GitState>()((set, get) => ({
     set({ selectedFile: file, currentDiff: null });
 
     if (file) {
-      // In demo mode, use pre-built diff data
       if (isDemo && _demoState) {
-        const diff = _demoState.diffs[file.path] || null;
-        set({ currentDiff: diff });
+        set({ currentDiff: _demoState.diffs[file.path] || null });
         return;
       }
+      await get()._fetchDiff(file, fullContext, ignoreWhitespace);
+    }
+  },
 
-      try {
+  fetchDiff: async (fullContext: boolean, ignoreWhitespace: boolean) => {
+    const { repoPath, selectedFile, isDemo, _demoState } = get();
+    if (!repoPath || !selectedFile) return;
+
+    if (isDemo && _demoState) {
+      set({ currentDiff: _demoState.diffs[selectedFile.path] || null });
+      return;
+    }
+
+    await get()._fetchDiff(selectedFile, fullContext, ignoreWhitespace);
+  },
+
+  _fetchDiff: async (file: FileEntry, fullContext: boolean, ignoreWhitespace: boolean) => {
+    const { repoPath, reviewMode, selectedCommit } = get();
+    if (!repoPath) return;
+
+    try {
+      if (reviewMode === "commits" && selectedCommit) {
+        const diff = await invoke<FileDiff>("get_commit_file_diff", {
+          repoPath,
+          oid: selectedCommit.oid,
+          filePath: file.path,
+          contextLines: fullContext ? 999999 : null,
+          ignoreWhitespace: ignoreWhitespace || null,
+        });
+        set({ currentDiff: diff });
+      } else {
         const diff = await invoke<FileDiff>("get_file_diff", {
           repoPath,
           filePath: file.path,
@@ -119,32 +163,7 @@ export const useGitStore = create<GitState>()((set, get) => ({
           ignoreWhitespace: ignoreWhitespace || null,
         });
         set({ currentDiff: diff });
-      } catch (e) {
-        set({ error: String(e) });
       }
-    }
-  },
-
-  fetchDiff: async (fullContext: boolean, ignoreWhitespace: boolean) => {
-    const { repoPath, selectedFile, isDemo, _demoState } = get();
-    if (!repoPath || !selectedFile) return;
-
-    // In demo mode, just return the existing diff
-    if (isDemo && _demoState) {
-      const diff = _demoState.diffs[selectedFile.path] || null;
-      set({ currentDiff: diff });
-      return;
-    }
-
-    try {
-      const diff = await invoke<FileDiff>("get_file_diff", {
-        repoPath,
-        filePath: selectedFile.path,
-        staged: selectedFile.staged,
-        contextLines: fullContext ? 999999 : null,
-        ignoreWhitespace: ignoreWhitespace || null,
-      });
-      set({ currentDiff: diff });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -252,4 +271,82 @@ export const useGitStore = create<GitState>()((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  setReviewMode: async (mode: ReviewMode) => {
+    const { repoPath, refreshStatus, fetchCommitLog } = get();
+    if (!repoPath) return;
+
+    set({
+      reviewMode: mode,
+      selectedFile: null,
+      currentDiff: null,
+      commits: [],
+      selectedCommit: null,
+      commitFiles: [],
+      commitsPage: 0,
+      commitsPaginated: false,
+    });
+
+    if (mode === "commits") {
+      await fetchCommitLog();
+    } else {
+      await refreshStatus();
+    }
+  },
+
+  fetchCommitLog: async () => {
+    const { repoPath } = get();
+    if (!repoPath) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      // Try branch-scoped log first (commits not in main/master/develop/dev)
+      const branchCommits = await invoke<CommitInfo[]>("get_branch_log", { repoPath });
+      if (branchCommits.length > 0) {
+        set({ commits: branchCommits, commitsPaginated: false, commitsPage: 0, isLoading: false });
+        return;
+      }
+      // Fall back to paginated log
+      const commits = await invoke<CommitInfo[]>("get_commit_log", { repoPath, count: 25, skip: 0 });
+      set({ commits, commitsPaginated: true, commitsPage: 0, isLoading: false });
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+    }
+  },
+
+  loadMoreCommits: async () => {
+    const { repoPath, commits, commitsPage, commitsPaginated } = get();
+    if (!repoPath || !commitsPaginated) return;
+
+    const nextPage = commitsPage + 1;
+    try {
+      const more = await invoke<CommitInfo[]>("get_commit_log", {
+        repoPath,
+        count: 25,
+        skip: nextPage * 25,
+      });
+      set({ commits: [...commits, ...more], commitsPage: nextPage });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  selectCommit: async (commit: CommitInfo | null) => {
+    const { repoPath } = get();
+    if (!repoPath) return;
+
+    set({ selectedCommit: commit, selectedFile: null, currentDiff: null, commitFiles: [] });
+
+    if (commit) {
+      try {
+        const commitFiles = await invoke<FileEntry[]>("get_commit_files", {
+          repoPath,
+          oid: commit.oid,
+        });
+        set({ commitFiles });
+      } catch (e) {
+        set({ error: String(e) });
+      }
+    }
+  },
 }));

@@ -1,5 +1,5 @@
 use git2::{
-    Delta, Diff, DiffOptions, IndexAddOption, Repository, ResetType, Signature, StatusOptions,
+    Delta, Diff, DiffOptions, IndexAddOption, Repository, ResetType, Signature, Sort, StatusOptions,
 };
 use std::path::Path;
 
@@ -397,6 +397,177 @@ impl GitRepository {
             is_binary,
             language: detect_language(file_path),
         })
+    }
+
+    pub fn get_commit_log(&self, count: usize, skip: usize) -> Result<Vec<CommitInfo>, AppError> {
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.push_head()?;
+        revwalk.set_sorting(Sort::TIME)?;
+
+        let mut commits = Vec::new();
+        for oid in revwalk.skip(skip).take(count) {
+            let oid = oid?;
+            let commit = self.repo.find_commit(oid)?;
+            let author = commit.author();
+            commits.push(CommitInfo {
+                oid: oid.to_string(),
+                message: commit.message().unwrap_or("").to_string(),
+                author_name: author.name().unwrap_or("").to_string(),
+                author_email: author.email().unwrap_or("").to_string(),
+                timestamp: commit.time().seconds(),
+            });
+        }
+
+        Ok(commits)
+    }
+
+    pub fn get_branch_log(&self) -> Result<Vec<CommitInfo>, AppError> {
+        let head_oid = match self.repo.head() {
+            Ok(h) => h.peel_to_commit()?.id(),
+            Err(_) => return Ok(vec![]),
+        };
+
+        // Try to find a merge base with common base branch names (local then remote)
+        let base_names = ["main", "master", "develop", "dev"];
+        let mut merge_base_oid = None;
+
+        'outer: for name in base_names {
+            let candidates = [
+                format!("refs/heads/{name}"),
+                format!("refs/remotes/origin/{name}"),
+            ];
+            for refname in &candidates {
+                if let Ok(reference) = self.repo.find_reference(refname) {
+                    if let Ok(base_commit) = reference.peel_to_commit() {
+                        // Skip if the base branch IS the current HEAD
+                        if base_commit.id() == head_oid {
+                            continue;
+                        }
+                        if let Ok(base) = self.repo.merge_base(head_oid, base_commit.id()) {
+                            merge_base_oid = Some(base);
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+        }
+
+        let stop_at = match merge_base_oid {
+            Some(oid) => oid,
+            // No base branch found — caller should fall back to paginated log
+            None => return Ok(vec![]),
+        };
+
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.push(head_oid)?;
+        revwalk.set_sorting(Sort::TIME)?;
+
+        let mut commits = Vec::new();
+        for oid in revwalk {
+            let oid = oid?;
+            if oid == stop_at {
+                break;
+            }
+            let commit = self.repo.find_commit(oid)?;
+            let author = commit.author();
+            commits.push(CommitInfo {
+                oid: oid.to_string(),
+                message: commit.message().unwrap_or("").to_string(),
+                author_name: author.name().unwrap_or("").to_string(),
+                author_email: author.email().unwrap_or("").to_string(),
+                timestamp: commit.time().seconds(),
+            });
+        }
+
+        Ok(commits)
+    }
+
+    pub fn get_commit_files(&self, oid: &str) -> Result<Vec<FileEntry>, AppError> {
+        let oid =
+            git2::Oid::from_str(oid).map_err(|e| AppError::Custom(format!("Invalid OID: {e}")))?;
+        let commit = self.repo.find_commit(oid)?;
+        let commit_tree = commit.tree()?;
+
+        let parent_tree = if commit.parent_count() > 0 {
+            Some(commit.parent(0)?.tree()?)
+        } else {
+            None
+        };
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), None)?;
+
+        let mut files = Vec::new();
+        for delta in diff.deltas() {
+            let status = match delta.status() {
+                git2::Delta::Added => FileStatus::Added,
+                git2::Delta::Deleted => FileStatus::Deleted,
+                git2::Delta::Renamed => FileStatus::Renamed,
+                git2::Delta::Copied => FileStatus::Copied,
+                git2::Delta::Conflicted => FileStatus::Conflicted,
+                _ => FileStatus::Modified,
+            };
+
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            let old_path = if delta.status() == git2::Delta::Renamed {
+                delta
+                    .old_file()
+                    .path()
+                    .map(|p| p.to_string_lossy().to_string())
+            } else {
+                None
+            };
+
+            files.push(FileEntry {
+                path,
+                status,
+                staged: false,
+                old_path,
+            });
+        }
+
+        Ok(files)
+    }
+
+    pub fn get_commit_file_diff(
+        &self,
+        oid: &str,
+        file_path: &str,
+        context_lines: u32,
+        ignore_whitespace: bool,
+    ) -> Result<FileDiff, AppError> {
+        let oid =
+            git2::Oid::from_str(oid).map_err(|e| AppError::Custom(format!("Invalid OID: {e}")))?;
+        let commit = self.repo.find_commit(oid)?;
+        let commit_tree = commit.tree()?;
+
+        let parent_tree = if commit.parent_count() > 0 {
+            Some(commit.parent(0)?.tree()?)
+        } else {
+            None
+        };
+
+        let mut diff_opts = DiffOptions::new();
+        diff_opts.pathspec(file_path);
+        diff_opts.context_lines(context_lines);
+        if ignore_whitespace {
+            diff_opts.ignore_whitespace(true);
+        }
+
+        let diff = self.repo.diff_tree_to_tree(
+            parent_tree.as_ref(),
+            Some(&commit_tree),
+            Some(&mut diff_opts),
+        )?;
+
+        self.parse_diff(&diff, file_path)
     }
 
     pub fn stage_file(&self, file_path: &str) -> Result<(), AppError> {
