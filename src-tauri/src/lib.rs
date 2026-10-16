@@ -16,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(ReviewWatcher::default())
         .setup(move |app| {
             // If a repo path was provided via CLI, emit it to the frontend
             if let Some(ref path) = initial_repo_path {
@@ -44,6 +45,7 @@ pub fn run() {
             discard_file,
             discard_all,
             export_review,
+            watch_review,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

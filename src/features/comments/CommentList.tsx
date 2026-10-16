@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { clsx } from "clsx";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useCommentStore } from "@/stores/commentStore";
 import { useGitStore } from "@/stores/gitStore";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui";
 import { HighlightedContent } from "@/features/diff/HighlightedContent";
 import { getLanguageFromPath } from "@/lib/syntax";
 import { stripIndent } from "@/lib/stripIndent";
-import type { Comment, CommentCategory } from "@/types/comment";
+import type { AgentResponse, Comment, CommentCategory } from "@/types/comment";
 
 const categoryStyles: Record<
   CommentCategory,
@@ -44,6 +45,11 @@ export function CommentList() {
     exportToMarkdown,
     clearAllComments,
     setDraft,
+    setExport,
+    setResponses,
+    currentRepoPath,
+    exports,
+    responses,
   } = useCommentStore();
   const { repoPath, status, selectFile } = useGitStore();
   const { setScrollToLine } = useUiStore();
@@ -51,6 +57,23 @@ export function CommentList() {
   const [exportStatus, setExportStatus] = useState<
     "idle" | "exporting" | "exported"
   >("idle");
+
+  const exportPath = currentRepoPath
+    ? exports[currentRepoPath]?.path
+    : undefined;
+
+  useEffect(() => {
+    if (!exportPath) return;
+    const unlisten = listen<string>("review-changed", (event) =>
+      setResponses(event.payload),
+    );
+    invoke<string>("watch_review", { path: exportPath })
+      .then(setResponses)
+      .catch((err) => console.error("Failed to watch review:", err));
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [exportPath, setResponses]);
 
   const handleNavigate = (comment: Comment) => {
     // Find the file in status and select it
@@ -70,7 +93,7 @@ export function CommentList() {
   };
 
   const handleExportForAgent = async () => {
-    const markdown = exportToMarkdown();
+    const markdown = exportToMarkdown(true);
     if (!markdown || !repoPath) return;
 
     setExportStatus("exporting");
@@ -79,6 +102,7 @@ export function CommentList() {
         repoPath,
         markdown,
       });
+      setExport(outputPath, comments.map((c) => c.id));
       await writeText(outputPath);
       setExportStatus("exported");
       setTimeout(() => setExportStatus("idle"), 2000);
@@ -135,6 +159,7 @@ export function CommentList() {
           <CommentCard
             key={comment.id}
             comment={comment}
+            response={responses[comment.id]}
             onDelete={() => removeComment(comment.filePath, comment.id)}
             onEdit={() =>
               setDraft({
@@ -158,12 +183,13 @@ export function CommentList() {
 
 interface CommentCardProps {
   comment: Comment;
+  response?: AgentResponse;
   onDelete: () => void;
   onEdit: () => void;
   onNavigate: () => void;
 }
 
-function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps) {
+function CommentCard({ comment, response, onDelete, onEdit, onNavigate }: CommentCardProps) {
   const lineRef =
     comment.startLine === comment.endLine
       ? `:${comment.startLine}`
@@ -298,6 +324,46 @@ function CommentCard({ comment, onDelete, onEdit, onNavigate }: CommentCardProps
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-gray-50 group-hover:from-gray-100 dark:from-gray-800 dark:group-hover:from-gray-700 transition-colors" />
           )}
         </div>
+      </div>
+
+      {response && <AgentResponseReply response={response} />}
+    </div>
+  );
+}
+
+function AgentResponseReply({ response }: { response: AgentResponse }) {
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="mt-2 flex cursor-default"
+    >
+      <div className="ml-1.5 mr-1 h-4 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2 border-gray-300 dark:border-gray-600" />
+      <div className="flex-1 min-w-0 rounded-md bg-white dark:bg-gray-900 ring-1 ring-gray-200/80 dark:ring-gray-700/80 p-2">
+        <div className="flex items-center gap-1.5 text-xs">
+          <svg
+            className="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <title>Agent response</title>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+            />
+          </svg>
+          <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+            {response.model || "Agent"}
+          </span>
+          <span className="text-gray-400 dark:text-gray-500 shrink-0">
+            Agent response
+          </span>
+        </div>
+        <p className="mt-1.5 text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
+          {response.text}
+        </p>
       </div>
     </div>
   );

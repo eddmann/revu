@@ -27,6 +27,10 @@ fmt: ## Format all code
 
 can-release: lint ## Run all CI checks (lint)
 
+test: ## Run all tests
+	bun test
+	cd src-tauri && cargo test
+
 lint: lint/frontend lint/backend ## Run all linting
 
 lint/frontend: ## Lint TypeScript/React code

@@ -1,12 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Comment, CommentCategory, CommentDraft } from "@/types/comment";
+import type { AgentResponse, Comment, CommentCategory, CommentDraft, ReviewExport } from "@/types/comment";
 import { getLanguageFromPath } from "@/lib/syntax";
+import { parseResponses } from "@/lib/agentResponses";
 
 interface CommentState {
   currentRepoPath: string | null;
   comments: Record<string, Record<string, Comment[]>>; // repoPath -> filePath -> comments
   draft: CommentDraft | null;
+  exports: Record<string, ReviewExport>; // repoPath -> latest export
+  responses: Record<string, AgentResponse>; // commentId -> response
 
   setRepoPath: (repoPath: string) => void;
   addComment: (
@@ -29,7 +32,9 @@ interface CommentState {
   getAllComments: () => Comment[];
   setDraft: (draft: CommentDraft | null) => void;
   clearAllComments: () => void;
-  exportToMarkdown: () => string;
+  exportToMarkdown: (forAgentFile?: boolean) => string;
+  setExport: (path: string, commentIds: string[]) => void;
+  setResponses: (review: string) => void;
   // Demo mode - accepts pre-built comments
   initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => void;
 }
@@ -40,6 +45,8 @@ export const useCommentStore = create<CommentState>()(
       currentRepoPath: null,
       comments: {},
       draft: null,
+      exports: {},
+      responses: {},
 
       setRepoPath: (repoPath) => set({ currentRepoPath: repoPath }),
 
@@ -151,6 +158,23 @@ export const useCommentStore = create<CommentState>()(
         }));
       },
 
+      setExport: (path, commentIds) => {
+        const { currentRepoPath } = get();
+        if (!currentRepoPath) return;
+
+        set((state) => ({
+          exports: { ...state.exports, [currentRepoPath]: { path, commentIds } },
+        }));
+      },
+
+      setResponses: (review) => {
+        const { currentRepoPath, exports } = get();
+        const reviewExport = currentRepoPath && exports[currentRepoPath];
+        if (!reviewExport) return;
+
+        set({ responses: parseResponses(review, reviewExport.commentIds) });
+      },
+
       initDemoComments: (repoPath: string, comments: Record<string, Comment[]>) => {
         set({
           currentRepoPath: repoPath,
@@ -160,7 +184,7 @@ export const useCommentStore = create<CommentState>()(
         });
       },
 
-      exportToMarkdown: () => {
+      exportToMarkdown: (forAgentFile = false) => {
         const allComments = get().getAllComments();
         if (allComments.length === 0) return "";
 
@@ -192,7 +216,15 @@ The user has reviewed code changes and left ${allComments.length} comment${s(all
 - NITPICK: Minor preference — fix if easy
 - PRAISE: Positive feedback — no change needed
 </review-categories>
-
+${
+  forAgentFile
+    ? `
+<responding>
+When you have addressed the comments, reply to each one in this file so the user can read your replies in revu. Insert a <response model="MODEL">your reply</response> element directly before that comment's closing </comment> tag, where MODEL is the name of the model you are running as (for example "Claude Opus 5.5"). Leave everything else in the file unchanged.
+</responding>
+`
+    : ""
+}
 <review-summary>
 Total: ${allComments.length} comment${s(allComments.length)}
 Action required: ${actionRequired}${actionRequired > 0 ? ` (${byCategory.issue.length} issue${s(byCategory.issue.length)}, ${byCategory.suggestion.length} suggestion${s(byCategory.suggestion.length)})` : ""}
@@ -233,7 +265,10 @@ ${comment.codeSnippet}</code>
     }),
     {
       name: "revu-comments",
-      partialize: (state) => ({ comments: state.comments }),
+      partialize: (state) => ({
+        comments: state.comments,
+        exports: state.exports,
+      }),
     },
   ),
 );
